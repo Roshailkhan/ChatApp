@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSettingsContext, ThemeMode } from "@/contexts/SettingsContext";
 import { useChatContext } from "@/contexts/ChatContext";
 import { useColors } from "@/lib/useColors";
+import { useTranslations } from "@/lib/useTranslations";
 
 interface Props {
   visible: boolean;
@@ -55,7 +56,23 @@ export function SettingsSheet({ visible, onClose }: Props) {
   const { appSettings, updateAppSettings } = useSettingsContext();
   const { settings, updateSettings } = useChatContext();
 
+  const t = useTranslations();
   const styles = useMemo(() => createStyles(C), [C]);
+
+  const themeLabels: Record<string, string> = {
+    dark: t.dark,
+    light: t.light,
+    system: t.system,
+  };
+
+  const modelDescs: string[] = [
+    t.mostCapable,
+    t.fastEfficient,
+    t.powerful,
+    t.affordable,
+    t.latest,
+    t.reasoning,
+  ];
 
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
 
@@ -68,7 +85,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
     >
       <View style={[styles.container, { paddingTop: topPadding }]}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Settings</Text>
+          <Text style={styles.headerTitle}>{t.settings}</Text>
           <Pressable style={styles.closeBtn} onPress={onClose}>
             <Feather name="x" size={20} color={C.text} />
           </Pressable>
@@ -80,30 +97,30 @@ export function SettingsSheet({ visible, onClose }: Props) {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>THEME</Text>
+            <Text style={styles.sectionLabel}>{t.theme}</Text>
             <View style={styles.card}>
-              {THEMES.map((t, i) => (
+              {THEMES.map((theme, i) => (
                 <Pressable
-                  key={t.value}
+                  key={theme.value}
                   style={[
                     styles.optionRow,
                     i < THEMES.length - 1 && styles.optionRowBorder,
                   ]}
-                  onPress={() => updateAppSettings({ theme: t.value })}
+                  onPress={() => updateAppSettings({ theme: theme.value })}
                 >
                   <View style={styles.optionLeft}>
                     <Feather
-                      name={t.icon as any}
+                      name={theme.icon as any}
                       size={16}
                       color={
-                        appSettings.theme === t.value
+                        appSettings.theme === theme.value
                           ? C.primary
                           : C.textSecondary
                       }
                     />
-                    <Text style={styles.optionText}>{t.label}</Text>
+                    <Text style={styles.optionText}>{themeLabels[theme.value]}</Text>
                   </View>
-                  {appSettings.theme === t.value && (
+                  {appSettings.theme === theme.value && (
                     <Feather name="check" size={16} color={C.primary} />
                   )}
                 </Pressable>
@@ -112,7 +129,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>AI MODEL</Text>
+            <Text style={styles.sectionLabel}>{t.aiModel}</Text>
             <View style={styles.card}>
               {AI_MODELS.map((m, i) => (
                 <Pressable
@@ -133,7 +150,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
                     />
                     <View>
                       <Text style={styles.optionText}>{m.name}</Text>
-                      <Text style={styles.optionDesc}>{m.desc}</Text>
+                      <Text style={styles.optionDesc}>{modelDescs[i]}</Text>
                     </View>
                   </View>
                   {settings.model === m.id && (
@@ -145,10 +162,8 @@ export function SettingsSheet({ visible, onClose }: Props) {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>LANGUAGE</Text>
-            <Text style={styles.sectionHint}>
-              AI will respond in the selected language
-            </Text>
+            <Text style={styles.sectionLabel}>{t.language}</Text>
+            <Text style={styles.sectionHint}>{t.aiRespondsIn}</Text>
             <View style={styles.card}>
               {LANGUAGES.map((lang, i) => (
                 <Pressable

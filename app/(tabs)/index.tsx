@@ -19,10 +19,12 @@ import { Sidebar } from "@/components/Sidebar";
 import { useChatContext, Message } from "@/contexts/ChatContext";
 import { useSettingsContext } from "@/contexts/SettingsContext";
 import { useColors } from "@/lib/useColors";
+import { useTranslations } from "@/lib/useTranslations";
 import { getApiUrl } from "@/lib/query-client";
 
 export default function ChatScreen() {
   const C = useColors();
+  const t = useTranslations();
   const {
     conversations,
     createConversation,
@@ -258,7 +260,7 @@ export default function ChatScreen() {
           <Feather name="menu" size={20} color={C.text} />
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>
-          {currentConversation?.title || "New Chat"}
+          {currentConversation?.title || t.newChat}
         </Text>
         <Pressable
           style={styles.iconBtn}
@@ -292,10 +294,8 @@ export default function ChatScreen() {
             !isTyping ? (
               <View style={styles.emptyContainer}>
                 <Feather name="zap" size={36} color={C.primary} />
-                <Text style={styles.emptyTitle}>How can I help?</Text>
-                <Text style={styles.emptySubtitle}>
-                  Ask me anything — I&apos;m here to assist.
-                </Text>
+                <Text style={styles.emptyTitle}>{t.howCanIHelp}</Text>
+                <Text style={styles.emptySubtitle}>{t.askMeAnything}</Text>
               </View>
             ) : null
           }

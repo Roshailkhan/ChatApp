@@ -15,6 +15,7 @@ import { ConversationItem } from "@/components/ConversationItem";
 import { SettingsSheet } from "@/components/SettingsSheet";
 import { Conversation, useChatContext } from "@/contexts/ChatContext";
 import { useColors } from "@/lib/useColors";
+import { useTranslations } from "@/lib/useTranslations";
 import * as Haptics from "expo-haptics";
 
 interface Props {
@@ -31,6 +32,7 @@ export function Sidebar({
   onClose,
 }: Props) {
   const C = useColors();
+  const t = useTranslations();
   const { conversations, deleteConversation, renameConversation } =
     useChatContext();
   const [search, setSearch] = useState("");
@@ -74,7 +76,7 @@ export function Sidebar({
   return (
     <View style={[styles.container, { paddingTop: topPadding }]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Conversations</Text>
+        <Text style={styles.title}>{t.conversations}</Text>
         <View style={styles.headerActions}>
           <Pressable
             style={styles.iconBtn}
@@ -102,7 +104,7 @@ export function Sidebar({
           style={styles.searchInput}
           value={search}
           onChangeText={setSearch}
-          placeholder="Search..."
+          placeholder={t.search}
           placeholderTextColor={C.textTertiary}
           selectionColor={C.primary}
         />
@@ -124,7 +126,7 @@ export function Sidebar({
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyText}>No conversations yet</Text>
+            <Text style={styles.emptyText}>{t.noConversationsYet}</Text>
           </View>
         }
       />
@@ -140,12 +142,12 @@ export function Sidebar({
           onPress={() => setRenamingId(null)}
         />
         <View style={styles.renameModal}>
-          <Text style={styles.renameTitle}>Rename Conversation</Text>
+          <Text style={styles.renameTitle}>{t.renameConversation}</Text>
           <TextInput
             style={styles.renameInput}
             value={renameText}
             onChangeText={setRenameText}
-            placeholder="Conversation title"
+            placeholder={t.conversationTitle}
             placeholderTextColor={C.textTertiary}
             selectionColor={C.primary}
             autoFocus
@@ -157,10 +159,10 @@ export function Sidebar({
               style={styles.cancelBtn}
               onPress={() => setRenamingId(null)}
             >
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Text style={styles.cancelText}>{t.cancel}</Text>
             </Pressable>
             <Pressable style={styles.saveBtn} onPress={submitRename}>
-              <Text style={styles.saveText}>Save</Text>
+              <Text style={styles.saveText}>{t.save}</Text>
             </Pressable>
           </View>
         </View>

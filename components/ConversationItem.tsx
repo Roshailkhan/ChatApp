@@ -10,6 +10,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { Conversation } from "@/contexts/ChatContext";
 import { useColors } from "@/lib/useColors";
+import { useTranslations } from "@/lib/useTranslations";
 import * as Haptics from "expo-haptics";
 import { PanResponder } from "react-native";
 
@@ -29,6 +30,7 @@ export function ConversationItem({
   onRename,
 }: Props) {
   const C = useColors();
+  const t = useTranslations();
   const styles = useMemo(() => createStyles(C), [C]);
   const swipeX = useRef(new Animated.Value(0)).current;
   const ACTION_WIDTH = 80;
@@ -67,13 +69,9 @@ export function ConversationItem({
 
   const handleDelete = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert("Delete Chat", "Are you sure you want to delete this chat?", [
-      { text: "Cancel", onPress: closeSwipe },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: onDelete,
-      },
+    Alert.alert(t.deleteChat, t.deleteConfirm, [
+      { text: t.cancel, onPress: closeSwipe },
+      { text: t.delete, style: "destructive", onPress: onDelete },
     ]);
   };
 

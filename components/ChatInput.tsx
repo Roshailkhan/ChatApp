@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/lib/useColors";
+import { useTranslations } from "@/lib/useTranslations";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -20,6 +21,7 @@ interface Props {
 
 export function ChatInput({ onSend, onStop, isStreaming, disabled }: Props) {
   const C = useColors();
+  const t = useTranslations();
   const [text, setText] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
@@ -67,7 +69,7 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: Props) {
             style={styles.input}
             value={text}
             onChangeText={setText}
-            placeholder="Message AI Chat..."
+            placeholder={t.messagePlaceholder}
             placeholderTextColor={C.textTertiary}
             multiline
             maxLength={4000}
