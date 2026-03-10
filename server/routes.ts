@@ -10,7 +10,7 @@ const openai = new OpenAI({
 export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/chat", async (req, res) => {
     try {
-      const { messages, systemPrompt } = req.body;
+      const { messages, systemPrompt, model, language } = req.body;
 
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -18,13 +18,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.flushHeaders();
 
       const allMessages: { role: "system" | "user" | "assistant"; content: string }[] = [];
-      if (systemPrompt && systemPrompt.trim()) {
-        allMessages.push({ role: "system", content: systemPrompt });
+      let effectivePrompt = systemPrompt || "";
+      if (language && language !== "English") {
+        effectivePrompt = effectivePrompt
+          ? `${effectivePrompt}\n\nPlease respond in ${language}.`
+          : `Please respond in ${language}.`;
+      }
+      if (effectivePrompt.trim()) {
+        allMessages.push({ role: "system", content: effectivePrompt });
       }
       allMessages.push(...messages);
 
+      const selectedModel = model || "gpt-5.2";
+
       const stream = await openai.chat.completions.create({
-        model: "gpt-5.2",
+        model: selectedModel,
         messages: allMessages,
         stream: true,
         max_completion_tokens: 8192,

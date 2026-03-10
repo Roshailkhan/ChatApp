@@ -1,11 +1,14 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useMemo } from "react";
 import { View, StyleSheet, Animated } from "react-native";
-import Colors from "@/constants/colors";
+import { useColors } from "@/lib/useColors";
 
 export function TypingIndicator() {
+  const C = useColors();
   const dot1 = useRef(new Animated.Value(0)).current;
   const dot2 = useRef(new Animated.Value(0)).current;
   const dot3 = useRef(new Animated.Value(0)).current;
+
+  const styles = useMemo(() => createStyles(C), [C]);
 
   useEffect(() => {
     const animate = (dot: Animated.Value, delay: number) =>
@@ -66,26 +69,28 @@ export function TypingIndicator() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    alignItems: "flex-start",
-  },
-  bubble: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: Colors.surface2,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 18,
-    borderBottomLeftRadius: 4,
-  },
-  dot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: Colors.textSecondary,
-  },
-});
+function createStyles(C: ReturnType<typeof useColors>) {
+  return StyleSheet.create({
+    container: {
+      paddingHorizontal: 16,
+      paddingVertical: 6,
+      alignItems: "flex-start",
+    },
+    bubble: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      backgroundColor: C.surface2,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderRadius: 18,
+      borderBottomLeftRadius: 4,
+    },
+    dot: {
+      width: 7,
+      height: 7,
+      borderRadius: 3.5,
+      backgroundColor: C.textSecondary,
+    },
+  });
+}

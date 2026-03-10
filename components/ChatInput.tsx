@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useMemo } from "react";
 import {
   View,
   TextInput,
@@ -7,7 +7,7 @@ import {
   Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import Colors from "@/constants/colors";
+import { useColors } from "@/lib/useColors";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -19,10 +19,12 @@ interface Props {
 }
 
 export function ChatInput({ onSend, onStop, isStreaming, disabled }: Props) {
+  const C = useColors();
   const [text, setText] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(C), [C]);
 
   const handleSend = () => {
     const trimmed = text.trim();
@@ -66,13 +68,13 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: Props) {
             value={text}
             onChangeText={setText}
             placeholder="Message AI Chat..."
-            placeholderTextColor={Colors.textTertiary}
+            placeholderTextColor={C.textTertiary}
             multiline
             maxLength={4000}
             blurOnSubmit={false}
             onSubmitEditing={handleSend}
             editable={!disabled}
-            selectionColor={Colors.primary}
+            selectionColor={C.primary}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
           />
@@ -83,7 +85,7 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: Props) {
             style={[styles.sendButton, styles.stopButton]}
             onPress={handleStop}
           >
-            <Feather name="square" size={16} color={Colors.text} />
+            <Feather name="square" size={16} color={C.text} />
           </Pressable>
         ) : (
           <Pressable
@@ -94,7 +96,7 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: Props) {
             <Feather
               name="arrow-up"
               size={18}
-              color={canSend ? "#fff" : Colors.textTertiary}
+              color={canSend ? "#fff" : C.textTertiary}
             />
           </Pressable>
         )}
@@ -103,56 +105,60 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrapper: {
-    backgroundColor: Colors.background,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    paddingTop: 12,
-    paddingHorizontal: 12,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 8,
-  },
-  inputContainer: {
-    flex: 1,
-    backgroundColor: Colors.surface2,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    minHeight: 44,
-    maxHeight: 120,
-  },
-  inputContainerFocused: {
-    borderColor: "#ffffff",
-  },
-  input: {
-    color: Colors.text,
-    fontSize: 15,
-    lineHeight: 22,
-    fontFamily: "Inter_400Regular",
-    padding: 0,
-    ...(Platform.OS === "web" ? { outlineWidth: 0, outlineStyle: "none", borderWidth: 0 } : {}),
-  },
-  sendButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: Colors.surface2,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  sendButtonActive: {
-    backgroundColor: Colors.primary,
-  },
-  stopButton: {
-    backgroundColor: Colors.surface3,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-});
+function createStyles(C: ReturnType<typeof useColors>) {
+  return StyleSheet.create({
+    wrapper: {
+      backgroundColor: C.background,
+      borderTopWidth: 1,
+      borderTopColor: C.border,
+      paddingTop: 12,
+      paddingHorizontal: 12,
+    },
+    row: {
+      flexDirection: "row",
+      alignItems: "flex-end",
+      gap: 8,
+    },
+    inputContainer: {
+      flex: 1,
+      backgroundColor: C.surface2,
+      borderRadius: 22,
+      borderWidth: 1,
+      borderColor: C.border,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      minHeight: 44,
+      maxHeight: 120,
+    },
+    inputContainerFocused: {
+      borderColor: "#ffffff",
+    },
+    input: {
+      color: C.text,
+      fontSize: 15,
+      lineHeight: 22,
+      fontFamily: "Inter_400Regular",
+      padding: 0,
+      ...(Platform.OS === "web"
+        ? { outlineWidth: 0, outlineStyle: "none", borderWidth: 0 }
+        : {}),
+    },
+    sendButton: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      backgroundColor: C.surface2,
+      alignItems: "center",
+      justifyContent: "center",
+      flexShrink: 0,
+    },
+    sendButtonActive: {
+      backgroundColor: C.primary,
+    },
+    stopButton: {
+      backgroundColor: C.surface3,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+  });
+}

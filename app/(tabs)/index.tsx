@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   View,
   FlatList,
@@ -17,10 +17,12 @@ import { MessageBubble } from "@/components/MessageBubble";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import { Sidebar } from "@/components/Sidebar";
 import { useChatContext, Message } from "@/contexts/ChatContext";
-import Colors from "@/constants/colors";
+import { useSettingsContext } from "@/contexts/SettingsContext";
+import { useColors } from "@/lib/useColors";
 import { getApiUrl } from "@/lib/query-client";
 
 export default function ChatScreen() {
+  const C = useColors();
   const {
     conversations,
     createConversation,
@@ -30,6 +32,7 @@ export default function ChatScreen() {
     settings,
     generateTitle,
   } = useChatContext();
+  const { appSettings } = useSettingsContext();
 
   const [activeConversationId, setActiveConversationId] = useState<
     string | null
@@ -41,6 +44,7 @@ export default function ChatScreen() {
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(C), [C]);
 
   useEffect(() => {
     async function init() {
@@ -103,6 +107,8 @@ export default function ChatScreen() {
         body: JSON.stringify({
           messages: historyMessages,
           systemPrompt: conversation?.systemPrompt || settings.systemPrompt,
+          model: settings.model,
+          language: appSettings.language,
         }),
         signal: controller.signal,
       });
@@ -249,7 +255,7 @@ export default function ChatScreen() {
           onPress={() => setShowSidebar(true)}
           testID="sidebar-toggle"
         >
-          <Feather name="menu" size={20} color={Colors.text} />
+          <Feather name="menu" size={20} color={C.text} />
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>
           {currentConversation?.title || "New Chat"}
@@ -259,7 +265,7 @@ export default function ChatScreen() {
           onPress={handleNewChat}
           testID="new-chat-button"
         >
-          <Feather name="edit" size={18} color={Colors.text} />
+          <Feather name="edit" size={18} color={C.text} />
         </Pressable>
       </View>
 
@@ -285,7 +291,7 @@ export default function ChatScreen() {
           ListEmptyComponent={
             !isTyping ? (
               <View style={styles.emptyContainer}>
-                <Feather name="zap" size={36} color={Colors.primary} />
+                <Feather name="zap" size={36} color={C.primary} />
                 <Text style={styles.emptyTitle}>How can I help?</Text>
                 <Text style={styles.emptySubtitle}>
                   Ask me anything — I&apos;m here to assist.
@@ -327,75 +333,77 @@ export default function ChatScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  flex: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 8,
-    paddingBottom: 12,
-    backgroundColor: Colors.background,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  headerTitle: {
-    flex: 1,
-    color: Colors.text,
-    fontSize: 15,
-    fontFamily: "Inter_600SemiBold",
-    textAlign: "center",
-    paddingHorizontal: 4,
-  },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 8,
-  },
-  messagesList: {
-    paddingVertical: 8,
-  },
-  emptyList: {
-    flexGrow: 1,
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 32,
-    gap: 12,
-    transform: [{ scaleY: -1 }],
-  },
-  emptyTitle: {
-    color: Colors.text,
-    fontSize: 22,
-    fontFamily: "Inter_600SemiBold",
-    textAlign: "center",
-  },
-  emptySubtitle: {
-    color: Colors.textSecondary,
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    textAlign: "center",
-    lineHeight: 20,
-  },
-  modalContainer: {
-    flex: 1,
-    flexDirection: "row",
-  },
-  sidebarWrapper: {
-    width: "75%",
-    maxWidth: 320,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-  },
-});
+function createStyles(C: ReturnType<typeof useColors>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: C.background,
+    },
+    flex: {
+      flex: 1,
+    },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 8,
+      paddingBottom: 12,
+      backgroundColor: C.background,
+      borderBottomWidth: 1,
+      borderBottomColor: C.border,
+    },
+    headerTitle: {
+      flex: 1,
+      color: C.text,
+      fontSize: 15,
+      fontFamily: "Inter_600SemiBold",
+      textAlign: "center",
+      paddingHorizontal: 4,
+    },
+    iconBtn: {
+      width: 40,
+      height: 40,
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: 8,
+    },
+    messagesList: {
+      paddingVertical: 8,
+    },
+    emptyList: {
+      flexGrow: 1,
+    },
+    emptyContainer: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 32,
+      gap: 12,
+      transform: [{ scaleY: -1 }],
+    },
+    emptyTitle: {
+      color: C.text,
+      fontSize: 22,
+      fontFamily: "Inter_600SemiBold",
+      textAlign: "center",
+    },
+    emptySubtitle: {
+      color: C.textSecondary,
+      fontSize: 14,
+      fontFamily: "Inter_400Regular",
+      textAlign: "center",
+      lineHeight: 20,
+    },
+    modalContainer: {
+      flex: 1,
+      flexDirection: "row",
+    },
+    sidebarWrapper: {
+      width: "75%",
+      maxWidth: 320,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.5)",
+    },
+  });
+}

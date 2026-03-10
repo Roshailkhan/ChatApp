@@ -14,6 +14,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { queryClient } from "@/lib/query-client";
 import { ChatProvider } from "@/contexts/ChatContext";
+import { SettingsProvider } from "@/contexts/SettingsContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -44,13 +45,15 @@ export default function RootLayout() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <GestureHandlerRootView>
-          <KeyboardProvider>
-            <ChatProvider>
-              <RootLayoutNav />
-            </ChatProvider>
-          </KeyboardProvider>
-        </GestureHandlerRootView>
+        <SettingsProvider>
+          <GestureHandlerRootView>
+            <KeyboardProvider>
+              <ChatProvider>
+                <RootLayoutNav />
+              </ChatProvider>
+            </KeyboardProvider>
+          </GestureHandlerRootView>
+        </SettingsProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );

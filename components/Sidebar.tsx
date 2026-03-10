@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -10,10 +10,11 @@ import {
   Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import Colors from "@/constants/colors";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ConversationItem } from "@/components/ConversationItem";
+import { SettingsSheet } from "@/components/SettingsSheet";
 import { Conversation, useChatContext } from "@/contexts/ChatContext";
+import { useColors } from "@/lib/useColors";
 import * as Haptics from "expo-haptics";
 
 interface Props {
@@ -29,12 +30,15 @@ export function Sidebar({
   onNewChat,
   onClose,
 }: Props) {
+  const C = useColors();
   const { conversations, deleteConversation, renameConversation } =
     useChatContext();
   const [search, setSearch] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameText, setRenameText] = useState("");
+  const [showSettings, setShowSettings] = useState(false);
   const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(C), [C]);
 
   const filtered = conversations.filter((c) =>
     c.title.toLowerCase().includes(search.toLowerCase())
@@ -65,32 +69,42 @@ export function Sidebar({
     }
   };
 
-  const topPadding =
-    Platform.OS === "web" ? 67 : insets.top;
+  const topPadding = Platform.OS === "web" ? 67 : insets.top;
 
   return (
     <View style={[styles.container, { paddingTop: topPadding }]}>
       <View style={styles.header}>
         <Text style={styles.title}>Conversations</Text>
         <View style={styles.headerActions}>
+          <Pressable
+            style={styles.iconBtn}
+            onPress={() => setShowSettings(true)}
+          >
+            <Feather name="settings" size={17} color={C.textSecondary} />
+          </Pressable>
           <Pressable style={styles.iconBtn} onPress={onNewChat}>
-            <Feather name="edit" size={18} color={Colors.text} />
+            <Feather name="edit" size={18} color={C.text} />
           </Pressable>
           <Pressable style={styles.iconBtn} onPress={onClose}>
-            <Feather name="x" size={20} color={Colors.text} />
+            <Feather name="x" size={20} color={C.text} />
           </Pressable>
         </View>
       </View>
 
       <View style={styles.searchRow}>
-        <Feather name="search" size={14} color={Colors.textTertiary} style={styles.searchIcon} />
+        <Feather
+          name="search"
+          size={14}
+          color={C.textTertiary}
+          style={styles.searchIcon}
+        />
         <TextInput
           style={styles.searchInput}
           value={search}
           onChangeText={setSearch}
           placeholder="Search..."
-          placeholderTextColor={Colors.textTertiary}
-          selectionColor={Colors.primary}
+          placeholderTextColor={C.textTertiary}
+          selectionColor={C.primary}
         />
       </View>
 
@@ -132,8 +146,8 @@ export function Sidebar({
             value={renameText}
             onChangeText={setRenameText}
             placeholder="Conversation title"
-            placeholderTextColor={Colors.textTertiary}
-            selectionColor={Colors.primary}
+            placeholderTextColor={C.textTertiary}
+            selectionColor={C.primary}
             autoFocus
             onSubmitEditing={submitRename}
             returnKeyType="done"
@@ -151,134 +165,141 @@ export function Sidebar({
           </View>
         </View>
       </Modal>
+
+      <SettingsSheet
+        visible={showSettings}
+        onClose={() => setShowSettings(false)}
+      />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.surface,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  title: {
-    color: Colors.text,
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-  },
-  headerActions: {
-    flexDirection: "row",
-    gap: 4,
-  },
-  iconBtn: {
-    width: 36,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 8,
-  },
-  searchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    margin: 12,
-    backgroundColor: Colors.surface2,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: 10,
-  },
-  searchIcon: {
-    marginRight: 6,
-  },
-  searchInput: {
-    flex: 1,
-    color: Colors.text,
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    paddingVertical: 8,
-  },
-  listContent: {
-    paddingBottom: 20,
-  },
-  empty: {
-    alignItems: "center",
-    marginTop: 40,
-  },
-  emptyText: {
-    color: Colors.textTertiary,
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-  },
-  modalOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.6)",
-  },
-  renameModal: {
-    position: "absolute",
-    left: 24,
-    right: 24,
-    top: "40%",
-    backgroundColor: Colors.surface2,
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  renameTitle: {
-    color: Colors.text,
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-    marginBottom: 16,
-  },
-  renameInput: {
-    backgroundColor: Colors.surface3,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    color: Colors.text,
-    fontSize: 15,
-    fontFamily: "Inter_400Regular",
-    marginBottom: 16,
-  },
-  renameActions: {
-    flexDirection: "row",
-    gap: 10,
-    justifyContent: "flex-end",
-  },
-  cancelBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: Colors.surface3,
-  },
-  cancelText: {
-    color: Colors.textSecondary,
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-  },
-  saveBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: Colors.primary,
-  },
-  saveText: {
-    color: "#fff",
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-  },
-});
+function createStyles(C: ReturnType<typeof useColors>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: C.surface,
+    },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: C.border,
+    },
+    title: {
+      color: C.text,
+      fontSize: 16,
+      fontFamily: "Inter_600SemiBold",
+    },
+    headerActions: {
+      flexDirection: "row",
+      gap: 4,
+    },
+    iconBtn: {
+      width: 36,
+      height: 36,
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: 8,
+    },
+    searchRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      margin: 12,
+      backgroundColor: C.surface2,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: C.border,
+      paddingHorizontal: 10,
+    },
+    searchIcon: {
+      marginRight: 6,
+    },
+    searchInput: {
+      flex: 1,
+      color: C.text,
+      fontSize: 14,
+      fontFamily: "Inter_400Regular",
+      paddingVertical: 8,
+    },
+    listContent: {
+      paddingBottom: 20,
+    },
+    empty: {
+      alignItems: "center",
+      marginTop: 40,
+    },
+    emptyText: {
+      color: C.textTertiary,
+      fontSize: 14,
+      fontFamily: "Inter_400Regular",
+    },
+    modalOverlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0,0,0,0.6)",
+    },
+    renameModal: {
+      position: "absolute",
+      left: 24,
+      right: 24,
+      top: "40%",
+      backgroundColor: C.surface2,
+      borderRadius: 16,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    renameTitle: {
+      color: C.text,
+      fontSize: 16,
+      fontFamily: "Inter_600SemiBold",
+      marginBottom: 16,
+    },
+    renameInput: {
+      backgroundColor: C.surface3,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: C.border,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      color: C.text,
+      fontSize: 15,
+      fontFamily: "Inter_400Regular",
+      marginBottom: 16,
+    },
+    renameActions: {
+      flexDirection: "row",
+      gap: 10,
+      justifyContent: "flex-end",
+    },
+    cancelBtn: {
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      borderRadius: 8,
+      backgroundColor: C.surface3,
+    },
+    cancelText: {
+      color: C.textSecondary,
+      fontSize: 14,
+      fontFamily: "Inter_500Medium",
+    },
+    saveBtn: {
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      borderRadius: 8,
+      backgroundColor: C.primary,
+    },
+    saveText: {
+      color: "#fff",
+      fontSize: 14,
+      fontFamily: "Inter_500Medium",
+    },
+  });
+}

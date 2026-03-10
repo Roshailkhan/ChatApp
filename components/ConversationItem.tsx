@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -8,8 +8,8 @@ import {
   Alert,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import Colors from "@/constants/colors";
 import { Conversation } from "@/contexts/ChatContext";
+import { useColors } from "@/lib/useColors";
 import * as Haptics from "expo-haptics";
 import { PanResponder } from "react-native";
 
@@ -28,6 +28,8 @@ export function ConversationItem({
   onDelete,
   onRename,
 }: Props) {
+  const C = useColors();
+  const styles = useMemo(() => createStyles(C), [C]);
   const swipeX = useRef(new Animated.Value(0)).current;
   const ACTION_WIDTH = 80;
 
@@ -119,7 +121,7 @@ export function ConversationItem({
           <Feather
             name="message-square"
             size={15}
-            color={isActive ? Colors.primary : Colors.textTertiary}
+            color={isActive ? C.primary : C.textTertiary}
             style={styles.icon}
           />
           <Text
@@ -134,56 +136,58 @@ export function ConversationItem({
   );
 }
 
-const styles = StyleSheet.create({
-  outerContainer: {
-    position: "relative",
-    overflow: "hidden",
-  },
-  actions: {
-    position: "absolute",
-    right: 0,
-    top: 0,
-    bottom: 0,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  actionBtn: {
-    width: 56,
-    height: "100%",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  renameBtn: {
-    backgroundColor: Colors.primary,
-  },
-  deleteBtn: {
-    backgroundColor: Colors.error,
-  },
-  container: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 10,
-    backgroundColor: Colors.background,
-    borderRadius: 8,
-    marginHorizontal: 8,
-    marginVertical: 1,
-  },
-  active: {
-    backgroundColor: Colors.surface2,
-  },
-  icon: {
-    flexShrink: 0,
-  },
-  title: {
-    flex: 1,
-    color: Colors.textSecondary,
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-  },
-  activeTitle: {
-    color: Colors.text,
-    fontFamily: "Inter_500Medium",
-  },
-});
+function createStyles(C: ReturnType<typeof useColors>) {
+  return StyleSheet.create({
+    outerContainer: {
+      position: "relative",
+      overflow: "hidden",
+    },
+    actions: {
+      position: "absolute",
+      right: 0,
+      top: 0,
+      bottom: 0,
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    actionBtn: {
+      width: 56,
+      height: "100%" as any,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    renameBtn: {
+      backgroundColor: C.primary,
+    },
+    deleteBtn: {
+      backgroundColor: C.error,
+    },
+    container: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      gap: 10,
+      backgroundColor: C.background,
+      borderRadius: 8,
+      marginHorizontal: 8,
+      marginVertical: 1,
+    },
+    active: {
+      backgroundColor: C.surface2,
+    },
+    icon: {
+      flexShrink: 0,
+    },
+    title: {
+      flex: 1,
+      color: C.textSecondary,
+      fontSize: 14,
+      fontFamily: "Inter_400Regular",
+    },
+    activeTitle: {
+      color: C.text,
+      fontFamily: "Inter_500Medium",
+    },
+  });
+}

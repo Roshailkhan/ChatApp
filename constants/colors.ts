@@ -1,4 +1,4 @@
-const Colors = {
+export const darkColors = {
   background: "#0A0A0A",
   surface: "#141414",
   surface2: "#1C1C1C",
@@ -21,4 +21,30 @@ const Colors = {
   tabIconSelected: "#7C6EFA",
 };
 
+export const lightColors = {
+  background: "#FFFFFF",
+  surface: "#F5F5F5",
+  surface2: "#EBEBEB",
+  surface3: "#E0E0E0",
+  border: "#D5D5D5",
+  borderLight: "#C8C8C8",
+  text: "#111111",
+  textSecondary: "#555555",
+  textTertiary: "#999999",
+  primary: "#7C6EFA",
+  primaryDark: "#5A4ECC",
+  primaryLight: "#9B8FFB",
+  userBubble: "#EBE9FF",
+  userBubbleBorder: "#D5D0FF",
+  assistantBubble: "transparent",
+  error: "#FF4444",
+  success: "#4CAF50",
+  tint: "#7C6EFA",
+  tabIconDefault: "#999999",
+  tabIconSelected: "#7C6EFA",
+};
+
+export type ColorTheme = typeof darkColors;
+
+const Colors = darkColors;
 export default Colors;

@@ -4,7 +4,7 @@ import { NativeTabs, Icon, Label } from "expo-router/unstable-native-tabs";
 import { StyleSheet } from "react-native";
 import React from "react";
 import { Ionicons } from "@expo/vector-icons";
-import Colors from "@/constants/colors";
+import { useColors } from "@/lib/useColors";
 
 function NativeTabLayout() {
   return (
@@ -18,11 +18,13 @@ function NativeTabLayout() {
 }
 
 function ClassicTabLayout() {
+  const C = useColors();
+
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors.tint,
-        tabBarInactiveTintColor: Colors.tabIconDefault,
+        tabBarActiveTintColor: C.tint,
+        tabBarInactiveTintColor: C.tabIconDefault,
         headerShown: false,
         tabBarStyle: styles.tabBar,
       }}
