@@ -2,15 +2,41 @@ import type { Express } from "express";
 import { createServer, type Server } from "node:http";
 import OpenAI from "openai";
 
-const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
-const GROQ_DEFAULT_MODEL = "llama-3.3-70b-versatile";
-const GROQ_TITLE_MODEL = "llama-3.1-8b-instant";
+const GROQ_MODELS = new Set([
+  "llama-3.3-70b-versatile",
+  "llama-3.1-8b-instant",
+  "mixtral-8x7b-32768",
+  "gemma2-9b-it",
+  "llama3-70b-8192",
+  "deepseek-r1-distill-llama-70b",
+]);
 
-function getAIClient(): OpenAI {
+const OPENAI_MODELS = new Set([
+  "gpt-4.1",
+  "gpt-4.1-mini",
+  "gpt-4o",
+  "gpt-4o-mini",
+  "gpt-5.2",
+  "o3-mini",
+]);
+
+function getClientForModel(model: string): OpenAI {
+  if (GROQ_MODELS.has(model) && process.env.GROQ_API_KEY) {
+    return new OpenAI({
+      apiKey: process.env.GROQ_API_KEY,
+      baseURL: "https://api.groq.com/openai/v1",
+    });
+  }
+  if (OPENAI_MODELS.has(model) && process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
+    return new OpenAI({
+      apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+    });
+  }
   if (process.env.GROQ_API_KEY) {
     return new OpenAI({
       apiKey: process.env.GROQ_API_KEY,
-      baseURL: GROQ_BASE_URL,
+      baseURL: "https://api.groq.com/openai/v1",
     });
   }
   return new OpenAI({
@@ -20,11 +46,13 @@ function getAIClient(): OpenAI {
 }
 
 function getDefaultModel(): string {
-  return process.env.GROQ_API_KEY ? GROQ_DEFAULT_MODEL : "gpt-5.2";
+  if (process.env.GROQ_API_KEY) return "llama-3.3-70b-versatile";
+  return "gpt-4.1";
 }
 
 function getTitleModel(): string {
-  return process.env.GROQ_API_KEY ? GROQ_TITLE_MODEL : "gpt-5-nano";
+  if (process.env.GROQ_API_KEY) return "llama-3.1-8b-instant";
+  return "gpt-4.1-mini";
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -50,7 +78,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       allMessages.push(...messages);
 
       const selectedModel = model || getDefaultModel();
-      const client = getAIClient();
+      const client = getClientForModel(selectedModel);
 
       const stream = await client.chat.completions.create({
         model: selectedModel,
@@ -82,9 +110,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/title", async (req, res) => {
     try {
       const { message } = req.body;
-      const client = getAIClient();
+      const titleModel = getTitleModel();
+      const client = getClientForModel(titleModel);
       const response = await client.chat.completions.create({
-        model: getTitleModel(),
+        model: titleModel,
         messages: [
           {
             role: "system",

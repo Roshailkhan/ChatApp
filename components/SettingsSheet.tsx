@@ -20,6 +20,19 @@ interface Props {
   onClose: () => void;
 }
 
+interface ModelEntry {
+  id: string;
+  name: string;
+  desc: string;
+}
+
+interface ProviderGroup {
+  provider: string;
+  label: string;
+  color: string;
+  models: ModelEntry[];
+}
+
 const THEMES: { value: ThemeMode; label: string; icon: string }[] = [
   { value: "dark", label: "Dark", icon: "moon" },
   { value: "light", label: "Light", icon: "sun" },
@@ -27,27 +40,37 @@ const THEMES: { value: ThemeMode; label: string; icon: string }[] = [
 ];
 
 const LANGUAGES = [
-  "English",
-  "Spanish",
-  "French",
-  "German",
-  "Chinese",
-  "Japanese",
-  "Arabic",
-  "Russian",
-  "Portuguese",
-  "Hindi",
-  "Korean",
-  "Italian",
+  "English", "Spanish", "French", "German", "Chinese",
+  "Japanese", "Arabic", "Russian", "Portuguese", "Hindi", "Korean", "Italian",
 ];
 
-const AI_MODELS: { id: string; name: string; desc: string }[] = [
-  { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B", desc: "Most capable" },
-  { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B", desc: "Fast & efficient" },
-  { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B", desc: "Powerful" },
-  { id: "gemma2-9b-it", name: "Gemma 2 9B", desc: "Affordable" },
-  { id: "llama3-70b-8192", name: "Llama 3 70B", desc: "Latest" },
-  { id: "deepseek-r1-distill-llama-70b", name: "DeepSeek R1", desc: "Reasoning" },
+const MODEL_GROUPS: ProviderGroup[] = [
+  {
+    provider: "groq",
+    label: "Groq",
+    color: "#F55036",
+    models: [
+      { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B", desc: "Most capable" },
+      { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B", desc: "Fastest" },
+      { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B", desc: "Balanced" },
+      { id: "gemma2-9b-it", name: "Gemma 2 9B", desc: "Google" },
+      { id: "llama3-70b-8192", name: "Llama 3 70B", desc: "Reliable" },
+      { id: "deepseek-r1-distill-llama-70b", name: "DeepSeek R1", desc: "Reasoning" },
+    ],
+  },
+  {
+    provider: "openai",
+    label: "OpenAI",
+    color: "#10A37F",
+    models: [
+      { id: "gpt-4.1", name: "GPT-4.1", desc: "Most capable" },
+      { id: "gpt-4.1-mini", name: "GPT-4.1 Mini", desc: "Fast" },
+      { id: "gpt-4o", name: "GPT-4o", desc: "Powerful" },
+      { id: "gpt-4o-mini", name: "GPT-4o Mini", desc: "Lightweight" },
+      { id: "gpt-5.2", name: "GPT-5.2", desc: "Latest" },
+      { id: "o3-mini", name: "o3 Mini", desc: "Reasoning" },
+    ],
+  },
 ];
 
 export function SettingsSheet({ visible, onClose }: Props) {
@@ -64,15 +87,6 @@ export function SettingsSheet({ visible, onClose }: Props) {
     light: t.light,
     system: t.system,
   };
-
-  const modelDescs: string[] = [
-    t.mostCapable,
-    t.fastEfficient,
-    t.powerful,
-    t.affordable,
-    t.latest,
-    t.reasoning,
-  ];
 
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
 
@@ -112,11 +126,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
                     <Feather
                       name={theme.icon as any}
                       size={16}
-                      color={
-                        appSettings.theme === theme.value
-                          ? C.primary
-                          : C.textSecondary
-                      }
+                      color={appSettings.theme === theme.value ? C.primary : C.textSecondary}
                     />
                     <Text style={styles.optionText}>{themeLabels[theme.value]}</Text>
                   </View>
@@ -130,35 +140,43 @@ export function SettingsSheet({ visible, onClose }: Props) {
 
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>{t.aiModel}</Text>
-            <View style={styles.card}>
-              {AI_MODELS.map((m, i) => (
-                <Pressable
-                  key={m.id}
-                  style={[
-                    styles.optionRow,
-                    i < AI_MODELS.length - 1 && styles.optionRowBorder,
-                  ]}
-                  onPress={() => updateSettings({ model: m.id })}
-                >
-                  <View style={styles.optionLeft}>
-                    <Feather
-                      name="cpu"
-                      size={16}
-                      color={
-                        settings.model === m.id ? C.primary : C.textSecondary
-                      }
-                    />
-                    <View>
-                      <Text style={styles.optionText}>{m.name}</Text>
-                      <Text style={styles.optionDesc}>{modelDescs[i]}</Text>
-                    </View>
-                  </View>
-                  {settings.model === m.id && (
-                    <Feather name="check" size={16} color={C.primary} />
-                  )}
-                </Pressable>
-              ))}
-            </View>
+            {MODEL_GROUPS.map((group) => (
+              <View key={group.provider} style={styles.providerBlock}>
+                <View style={styles.providerHeader}>
+                  <View style={[styles.providerDot, { backgroundColor: group.color }]} />
+                  <Text style={styles.providerLabel}>{group.label}</Text>
+                </View>
+                <View style={styles.card}>
+                  {group.models.map((m, i) => {
+                    const isSelected = settings.model === m.id;
+                    return (
+                      <Pressable
+                        key={m.id}
+                        style={[
+                          styles.optionRow,
+                          i < group.models.length - 1 && styles.optionRowBorder,
+                          isSelected && styles.optionRowSelected,
+                        ]}
+                        onPress={() => updateSettings({ model: m.id })}
+                      >
+                        <View style={styles.optionLeft}>
+                          <View style={[styles.modelDot, { backgroundColor: group.color }]} />
+                          <View>
+                            <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
+                              {m.name}
+                            </Text>
+                            <Text style={styles.optionDesc}>{m.desc}</Text>
+                          </View>
+                        </View>
+                        {isSelected && (
+                          <Feather name="check" size={16} color={C.primary} />
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ))}
           </View>
 
           <View style={styles.section}>
@@ -218,15 +236,9 @@ function createStyles(C: ReturnType<typeof useColors>) {
       borderRadius: 18,
       backgroundColor: C.surface2,
     },
-    scroll: {
-      flex: 1,
-    },
-    scrollContent: {
-      padding: 20,
-    },
-    section: {
-      marginBottom: 28,
-    },
+    scroll: { flex: 1 },
+    scrollContent: { padding: 20 },
+    section: { marginBottom: 28 },
     sectionLabel: {
       color: C.textTertiary,
       fontSize: 12,
@@ -260,6 +272,9 @@ function createStyles(C: ReturnType<typeof useColors>) {
       borderBottomWidth: 1,
       borderBottomColor: C.border,
     },
+    optionRowSelected: {
+      backgroundColor: C.surface2,
+    },
     optionLeft: {
       flexDirection: "row",
       alignItems: "center",
@@ -270,10 +285,39 @@ function createStyles(C: ReturnType<typeof useColors>) {
       fontSize: 15,
       fontFamily: "Inter_400Regular",
     },
+    optionTextSelected: {
+      fontFamily: "Inter_500Medium",
+    },
     optionDesc: {
       color: C.textTertiary,
       fontSize: 12,
       fontFamily: "Inter_400Regular",
+      marginTop: 1,
+    },
+    providerBlock: {
+      marginBottom: 12,
+    },
+    providerHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 6,
+      marginLeft: 4,
+    },
+    providerDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+    },
+    providerLabel: {
+      color: C.textSecondary,
+      fontSize: 13,
+      fontFamily: "Inter_500Medium",
+    },
+    modelDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
       marginTop: 1,
     },
   });
