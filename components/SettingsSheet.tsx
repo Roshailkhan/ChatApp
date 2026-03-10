@@ -42,12 +42,12 @@ const LANGUAGES = [
 ];
 
 const AI_MODELS: { id: string; name: string; desc: string }[] = [
-  { id: "gpt-4.1", name: "GPT-4.1", desc: "Most capable" },
-  { id: "gpt-4.1-mini", name: "GPT-4.1 Mini", desc: "Fast & efficient" },
-  { id: "gpt-4o", name: "GPT-4o", desc: "Powerful" },
-  { id: "gpt-4o-mini", name: "GPT-4o Mini", desc: "Affordable" },
-  { id: "gpt-5.2", name: "GPT-5.2", desc: "Latest" },
-  { id: "o3-mini", name: "o3 Mini", desc: "Reasoning" },
+  { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B", desc: "Most capable" },
+  { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B", desc: "Fast & efficient" },
+  { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B", desc: "Powerful" },
+  { id: "gemma2-9b-it", name: "Gemma 2 9B", desc: "Affordable" },
+  { id: "llama3-70b-8192", name: "Llama 3 70B", desc: "Latest" },
+  { id: "deepseek-r1-distill-llama-70b", name: "DeepSeek R1", desc: "Reasoning" },
 ];
 
 export function SettingsSheet({ visible, onClose }: Props) {

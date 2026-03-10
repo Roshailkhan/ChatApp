@@ -2,10 +2,30 @@ import type { Express } from "express";
 import { createServer, type Server } from "node:http";
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
+const GROQ_DEFAULT_MODEL = "llama-3.3-70b-versatile";
+const GROQ_TITLE_MODEL = "llama-3.1-8b-instant";
+
+function getAIClient(): OpenAI {
+  if (process.env.GROQ_API_KEY) {
+    return new OpenAI({
+      apiKey: process.env.GROQ_API_KEY,
+      baseURL: GROQ_BASE_URL,
+    });
+  }
+  return new OpenAI({
+    apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+  });
+}
+
+function getDefaultModel(): string {
+  return process.env.GROQ_API_KEY ? GROQ_DEFAULT_MODEL : "gpt-5.2";
+}
+
+function getTitleModel(): string {
+  return process.env.GROQ_API_KEY ? GROQ_TITLE_MODEL : "gpt-5-nano";
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/chat", async (req, res) => {
@@ -29,13 +49,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       allMessages.push(...messages);
 
-      const selectedModel = model || "gpt-5.2";
+      const selectedModel = model || getDefaultModel();
+      const client = getAIClient();
 
-      const stream = await openai.chat.completions.create({
+      const stream = await client.chat.completions.create({
         model: selectedModel,
         messages: allMessages,
         stream: true,
-        max_completion_tokens: 8192,
+        max_tokens: 8192,
       });
 
       for await (const chunk of stream) {
@@ -61,8 +82,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/title", async (req, res) => {
     try {
       const { message } = req.body;
-      const response = await openai.chat.completions.create({
-        model: "gpt-5-nano",
+      const client = getAIClient();
+      const response = await client.chat.completions.create({
+        model: getTitleModel(),
         messages: [
           {
             role: "system",
@@ -71,7 +93,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
           { role: "user", content: message },
         ],
-        max_completion_tokens: 20,
+        max_tokens: 20,
       });
       const title =
         response.choices[0]?.message?.content?.trim() ||

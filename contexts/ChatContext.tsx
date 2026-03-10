@@ -36,7 +36,7 @@ const CONVERSATIONS_KEY = "chat_conversations";
 const SETTINGS_KEY = "chat_settings";
 
 const defaultSettings: Settings = {
-  model: "gpt-5.2",
+  model: "llama-3.3-70b-versatile",
   systemPrompt: "You are a helpful, knowledgeable, and concise AI assistant.",
   temperature: 0.7,
   maxTokens: 8192,
