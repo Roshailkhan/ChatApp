@@ -20,6 +20,7 @@ interface Props {
 
 export function ChatInput({ onSend, onStop, isStreaming, disabled }: Props) {
   const [text, setText] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const insets = useSafeAreaInsets();
 
@@ -53,7 +54,12 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: Props) {
       ]}
     >
       <View style={styles.row}>
-        <View style={styles.inputContainer}>
+        <View
+          style={[
+            styles.inputContainer,
+            isFocused && styles.inputContainerFocused,
+          ]}
+        >
           <TextInput
             ref={inputRef}
             style={styles.input}
@@ -67,6 +73,8 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: Props) {
             onSubmitEditing={handleSend}
             editable={!disabled}
             selectionColor={Colors.primary}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
           />
         </View>
 
@@ -119,12 +127,16 @@ const styles = StyleSheet.create({
     minHeight: 44,
     maxHeight: 120,
   },
+  inputContainerFocused: {
+    borderColor: Colors.primary,
+  },
   input: {
     color: Colors.text,
     fontSize: 15,
     lineHeight: 22,
     fontFamily: "Inter_400Regular",
     padding: 0,
+    ...(Platform.OS === "web" ? { outlineWidth: 0 } : {}),
   },
   sendButton: {
     width: 38,
