@@ -5,10 +5,9 @@ import OpenAI from "openai";
 const GROQ_MODELS = new Set([
   "llama-3.3-70b-versatile",
   "llama-3.1-8b-instant",
-  "mixtral-8x7b-32768",
-  "gemma2-9b-it",
-  "llama3-70b-8192",
-  "deepseek-r1-distill-llama-70b",
+  "meta-llama/llama-4-scout-17b-16e-instruct",
+  "compound-beta",
+  "compound-beta-mini",
 ]);
 
 const OPENAI_MODELS = new Set([
@@ -16,9 +15,13 @@ const OPENAI_MODELS = new Set([
   "gpt-4.1-mini",
   "gpt-4o",
   "gpt-4o-mini",
-  "gpt-5.2",
   "o3-mini",
 ]);
+
+// Models that require max_completion_tokens instead of max_tokens
+function usesCompletionTokens(model: string): boolean {
+  return /^o[0-9]|^gpt-5/i.test(model);
+}
 
 function getClientForModel(model: string): OpenAI {
   if (GROQ_MODELS.has(model) && process.env.GROQ_API_KEY) {
@@ -80,11 +83,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const selectedModel = model || getDefaultModel();
       const client = getClientForModel(selectedModel);
 
+      const tokenParam = usesCompletionTokens(selectedModel)
+        ? { max_completion_tokens: 8192 }
+        : { max_tokens: 8192 };
+
       const stream = await client.chat.completions.create({
         model: selectedModel,
         messages: allMessages,
         stream: true,
-        max_tokens: 8192,
+        ...tokenParam,
       });
 
       for await (const chunk of stream) {
@@ -112,6 +119,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { message } = req.body;
       const titleModel = getTitleModel();
       const client = getClientForModel(titleModel);
+      const tokenParam = usesCompletionTokens(titleModel)
+        ? { max_completion_tokens: 20 }
+        : { max_tokens: 20 };
       const response = await client.chat.completions.create({
         model: titleModel,
         messages: [
@@ -122,7 +132,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
           { role: "user", content: message },
         ],
-        max_tokens: 20,
+        ...tokenParam,
       });
       const title =
         response.choices[0]?.message?.content?.trim() ||

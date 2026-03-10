@@ -52,10 +52,9 @@ const MODEL_GROUPS: ProviderGroup[] = [
     models: [
       { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B", desc: "Most capable" },
       { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B", desc: "Fastest" },
-      { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B", desc: "Balanced" },
-      { id: "gemma2-9b-it", name: "Gemma 2 9B", desc: "Google" },
-      { id: "llama3-70b-8192", name: "Llama 3 70B", desc: "Reliable" },
-      { id: "deepseek-r1-distill-llama-70b", name: "DeepSeek R1", desc: "Reasoning" },
+      { id: "meta-llama/llama-4-scout-17b-16e-instruct", name: "Llama 4 Scout", desc: "Latest" },
+      { id: "compound-beta", name: "Compound Beta", desc: "Multi-tool" },
+      { id: "compound-beta-mini", name: "Compound Mini", desc: "Fast multi-tool" },
     ],
   },
   {
@@ -67,7 +66,6 @@ const MODEL_GROUPS: ProviderGroup[] = [
       { id: "gpt-4.1-mini", name: "GPT-4.1 Mini", desc: "Fast" },
       { id: "gpt-4o", name: "GPT-4o", desc: "Powerful" },
       { id: "gpt-4o-mini", name: "GPT-4o Mini", desc: "Lightweight" },
-      { id: "gpt-5.2", name: "GPT-5.2", desc: "Latest" },
       { id: "o3-mini", name: "o3 Mini", desc: "Reasoning" },
     ],
   },
