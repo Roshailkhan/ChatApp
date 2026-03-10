@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontFamily: "Inter_400Regular",
     padding: 0,
-    ...(Platform.OS === "web" ? { outlineWidth: 0, borderWidth: 0 } : {}),
+    ...(Platform.OS === "web" ? { outlineWidth: 0, outlineStyle: "none", borderWidth: 0 } : {}),
   },
   sendButton: {
     width: 38,
