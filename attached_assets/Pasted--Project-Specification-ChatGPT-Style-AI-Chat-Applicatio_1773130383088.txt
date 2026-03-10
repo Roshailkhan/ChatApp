@@ -1,0 +1,573 @@
+# Project Specification
+
+## ChatGPT-Style AI Chat Application (Frontend Only)
+
+### Platform
+
+Replit
+
+### Objective
+
+Build a complete **ChatGPT-style web application frontend** that allows users to interact with an AI chat backend.
+
+This application must include all frontend logic such as:
+
+* conversation management
+* message history
+* streaming responses
+* context management
+* message queue
+* retry handling
+* error handling
+* local persistence
+
+The application **must not implement any backend logic**.
+
+A separate backend team will build the API.
+
+The frontend must be designed so that **only one configuration variable needs to be changed to integrate the backend API**.
+
+---
+
+# Core Integration Requirement
+
+All network requests must use a single configurable endpoint.
+
+Create a configuration file:
+
+`/src/config/apiConfig.js`
+
+Example:
+
+```javascript
+export const API_ENDPOINT = "https://backend-domain.com/chat"
+```
+
+When backend becomes available, **only this variable should change**.
+
+No other code modifications should be required.
+
+---
+
+# Technology Stack
+
+Framework
+React (Vite)
+
+Styling
+TailwindCSS
+
+State Management
+Zustand
+
+Networking
+Fetch API or Axios
+
+Utilities
+UUID
+
+Markdown Rendering
+react-markdown
+
+Syntax Highlighting
+PrismJS
+
+Streaming Support
+Fetch streaming
+EventSource fallback
+
+Local Storage
+IndexedDB
+localStorage
+
+---
+
+# Project Structure
+
+```
+src/
+
+components/
+ChatWindow
+ChatInput
+MessageBubble
+Sidebar
+ConversationItem
+TypingIndicator
+ErrorBanner
+SettingsPanel
+CodeBlock
+ToolMessage
+
+pages/
+ChatPage
+
+store/
+chatStore.js
+settingsStore.js
+
+services/
+apiClient.js
+chatService.js
+conversationService.js
+
+utils/
+contextManager.js
+messageQueue.js
+retryHandler.js
+streamHandler.js
+tokenEstimator.js
+conversationTitleGenerator.js
+
+hooks/
+useStreaming.js
+useMessageQueue.js
+useConversations.js
+
+config/
+apiConfig.js
+
+App.jsx
+main.jsx
+```
+
+---
+
+# Data Models
+
+## Message Object
+
+```
+{
+  id: string,
+  role: "user" | "assistant" | "system" | "tool",
+  content: string,
+  timestamp: number,
+  status: "pending" | "sent" | "streaming" | "complete" | "error" | "cancelled",
+  metadata?: object
+}
+```
+
+---
+
+## Conversation Object
+
+```
+{
+  id: string,
+  title: string,
+  created_at: number,
+  updated_at: number,
+  messages: Message[],
+  model: string
+}
+```
+
+---
+
+# State Management
+
+Use **Zustand** to manage application state.
+
+The state must include:
+
+```
+conversations
+activeConversationId
+messages
+isLoading
+isStreaming
+error
+settings
+messageQueue
+```
+
+---
+
+# Context Management
+
+The frontend must automatically manage conversation context.
+
+Algorithm:
+
+1. Collect all conversation messages
+2. Preserve system prompts
+3. Estimate token size
+4. If token limit exceeded:
+
+   * Remove oldest messages
+   * Keep latest N messages
+
+This prevents overly large requests.
+
+---
+
+# Context Compression
+
+When conversation becomes extremely long:
+
+Instead of deleting old messages:
+
+1. Generate summary message
+2. Replace old messages with summary block
+
+Example:
+
+```
+System Summary:
+User previously asked about authentication architecture and received an explanation of OAuth flows.
+```
+
+---
+
+# Message Queue
+
+Users may send multiple messages rapidly.
+
+Implement a queue system.
+
+Functions:
+
+```
+enqueueMessage(message)
+processNextMessage()
+```
+
+Rules:
+
+* messages processed sequentially
+* next message waits until response finishes
+* prevents race conditions
+
+---
+
+# Streaming Response Handling
+
+The application must support streaming token responses.
+
+Flow:
+
+```
+User sends message
+↓
+Assistant placeholder message created
+↓
+Request sent to API
+↓
+Tokens streamed from server
+↓
+Tokens appended to message content
+↓
+UI updates in real time
+↓
+Message marked complete
+```
+
+Streaming must support:
+
+* fetch streaming
+* Server Sent Events
+* fallback full JSON response
+
+---
+
+# Retry Logic
+
+Automatically retry failed requests.
+
+Strategy:
+
+```
+maxRetries = 3
+```
+
+Delay pattern:
+
+```
+1 second
+2 seconds
+4 seconds
+```
+
+---
+
+# Stop Generation
+
+Users must be able to stop response generation.
+
+Use AbortController.
+
+Behavior:
+
+```
+abort streaming request
+stop token updates
+mark message cancelled
+```
+
+---
+
+# Conversation Management
+
+The application must support:
+
+Create conversation
+Rename conversation
+Delete conversation
+Switch conversations
+
+Conversation titles should be generated automatically using the first user message.
+
+Example algorithm:
+
+```
+title = firstMessage.substring(0, 40)
+```
+
+---
+
+# Sidebar
+
+Sidebar should display:
+
+* list of conversations
+* new chat button
+* delete chat option
+* rename chat option
+* search chats
+
+---
+
+# Chat Window
+
+Main chat window should display:
+
+* message list
+* streaming assistant responses
+* markdown formatted messages
+* code blocks
+
+Large message lists must use virtualization.
+
+Use:
+
+```
+react-virtual
+```
+
+---
+
+# Chat Input
+
+Input requirements:
+
+* multiline support
+* Enter to send
+* Shift+Enter for newline
+* disable while streaming
+
+---
+
+# Markdown Rendering
+
+Assistant messages must support markdown.
+
+Supported formats:
+
+* headings
+* lists
+* tables
+* code blocks
+* links
+* inline code
+
+Use:
+
+```
+react-markdown
+```
+
+---
+
+# Code Block Component
+
+Custom code block UI must include:
+
+* syntax highlighting
+* copy to clipboard button
+
+Use PrismJS.
+
+---
+
+# Tool Messages
+
+Support special tool responses.
+
+Example structure:
+
+```
+role: "tool"
+```
+
+Display tool output in structured format.
+
+Example:
+
+```
+Weather Tool
+Temperature: 25°C
+Humidity: 60%
+```
+
+---
+
+# Settings Panel
+
+User settings must include:
+
+```
+model
+temperature
+max_tokens
+system_prompt
+```
+
+These settings will be included in requests.
+
+---
+
+# Local Data Persistence
+
+Store locally:
+
+```
+conversations
+messages
+settings
+```
+
+Use:
+
+IndexedDB for conversations
+localStorage for settings
+
+---
+
+# Security
+
+Prevent malicious content rendering.
+
+Sanitize markdown.
+
+Prevent:
+
+```
+script injection
+HTML injection
+unsafe links
+```
+
+---
+
+# API Client Layer
+
+All API calls must go through:
+
+`/src/services/apiClient.js`
+
+Example:
+
+```
+import { API_ENDPOINT } from "../config/apiConfig"
+
+export async function sendChatRequest(payload) {
+  return fetch(API_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  })
+}
+```
+
+No other file should reference the API endpoint.
+
+---
+
+# Performance Targets
+
+The application must support:
+
+* 1000+ conversations
+* 10000+ messages
+* smooth scrolling
+* real-time streaming updates
+
+---
+
+# Replit Setup
+
+Install dependencies:
+
+```
+npm install
+```
+
+Run development server:
+
+```
+npm run dev
+```
+
+---
+
+# Required Dependencies
+
+```
+react
+vite
+tailwindcss
+zustand
+axios
+uuid
+react-markdown
+prismjs
+react-virtual
+```
+
+---
+
+# Final Integration Rule
+
+The frontend must be designed so backend integration requires **only one change**.
+
+```
+API_ENDPOINT
+```
+
+Example:
+
+```
+export const API_ENDPOINT = "https://backend-domain.com/chat"
+```
+
+No other code changes should be required.
+
+---
+
+# Expected Output
+
+The AI builder must generate:
+
+* full React project
+* all components
+* full folder structure
+* state management
+* message streaming system
+* queue system
+* context manager
+* markdown renderer
+* settings panel
+* conversation sidebar
+
+The application must run successfully on **Replit** without manual restructuring.
