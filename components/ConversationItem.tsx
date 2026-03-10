@@ -113,6 +113,8 @@ export function ConversationItem({
             closeSwipe();
             onPress();
           }}
+          onLongPress={handleDelete}
+          delayLongPress={400}
         >
           <Feather
             name="message-square"
