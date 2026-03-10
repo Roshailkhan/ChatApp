@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
     maxHeight: 120,
   },
   inputContainerFocused: {
-    borderColor: Colors.primary,
+    borderColor: "#ffffff",
   },
   input: {
     color: Colors.text,
