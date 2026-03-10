@@ -1,7 +1,7 @@
 import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Tabs } from "expo-router";
 import { NativeTabs, Icon, Label } from "expo-router/unstable-native-tabs";
-import { Platform, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
 import React from "react";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
@@ -53,9 +53,6 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: Colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    height: Platform.OS === "web" ? 84 : undefined,
+    display: "none",
   },
 });
