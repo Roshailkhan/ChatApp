@@ -17,9 +17,20 @@ interface Props {
   onStop?: () => void;
   isStreaming: boolean;
   disabled?: boolean;
+  onCompanionPress?: () => void;
+  activeCompanionColor?: string;
+  activeCompanionIcon?: string;
 }
 
-export function ChatInput({ onSend, onStop, isStreaming, disabled }: Props) {
+export function ChatInput({
+  onSend,
+  onStop,
+  isStreaming,
+  disabled,
+  onCompanionPress,
+  activeCompanionColor,
+  activeCompanionIcon,
+}: Props) {
   const C = useColors();
   const t = useTranslations();
   const [text, setText] = useState("");
@@ -58,6 +69,23 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: Props) {
       ]}
     >
       <View style={styles.row}>
+        {onCompanionPress && (
+          <Pressable
+            style={[
+              styles.companionBtn,
+              activeCompanionColor
+                ? { backgroundColor: activeCompanionColor + "22", borderColor: activeCompanionColor + "55" }
+                : {},
+            ]}
+            onPress={onCompanionPress}
+          >
+            <Feather
+              name={(activeCompanionIcon as any) || "user"}
+              size={16}
+              color={activeCompanionColor || C.textTertiary}
+            />
+          </Pressable>
+        )}
         <View
           style={[
             styles.inputContainer,
@@ -120,6 +148,17 @@ function createStyles(C: ReturnType<typeof useColors>) {
       flexDirection: "row",
       alignItems: "flex-end",
       gap: 8,
+    },
+    companionBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      backgroundColor: C.surface2,
+      borderWidth: 1,
+      borderColor: C.border,
+      alignItems: "center",
+      justifyContent: "center",
+      flexShrink: 0,
     },
     inputContainer: {
       flex: 1,

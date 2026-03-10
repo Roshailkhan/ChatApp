@@ -6,11 +6,13 @@ export type ThemeMode = "dark" | "light" | "system";
 export interface AppSettings {
   theme: ThemeMode;
   language: string;
+  redactionEnabled: boolean;
 }
 
 const defaultAppSettings: AppSettings = {
   theme: "dark",
   language: "English",
+  redactionEnabled: true,
 };
 
 const APP_SETTINGS_KEY = "app_settings";

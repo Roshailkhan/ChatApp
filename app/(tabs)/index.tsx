@@ -16,11 +16,14 @@ import { ChatInput } from "@/components/ChatInput";
 import { MessageBubble } from "@/components/MessageBubble";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import { Sidebar } from "@/components/Sidebar";
+import { CompanionsSheet } from "@/components/CompanionsSheet";
 import { useChatContext, Message } from "@/contexts/ChatContext";
 import { useSettingsContext } from "@/contexts/SettingsContext";
+import { useCompanions } from "@/contexts/CompanionsContext";
 import { useColors } from "@/lib/useColors";
 import { useTranslations } from "@/lib/useTranslations";
 import { getApiUrl } from "@/lib/query-client";
+import { redactPII } from "@/lib/redact";
 
 export default function ChatScreen() {
   const C = useColors();
@@ -35,14 +38,15 @@ export default function ChatScreen() {
     generateTitle,
   } = useChatContext();
   const { appSettings } = useSettingsContext();
+  const { getActiveCompanion, activeCompanionId } = useCompanions();
 
-  const [activeConversationId, setActiveConversationId] = useState<
-    string | null
-  >(null);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
+  const [showCompanions, setShowCompanions] = useState(false);
+  const [isIncognito, setIsIncognito] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const insets = useSafeAreaInsets();
@@ -73,16 +77,29 @@ export default function ChatScreen() {
     if (!activeConversationId || isStreaming) return;
     const convId = activeConversationId;
 
-    const userMsg = await addMessage(convId, {
-      role: "user",
-      content: text,
-      status: "complete",
-    });
+    const outgoingText = appSettings.redactionEnabled ? redactPII(text) : text;
+
+    let userMsg: Message;
+    if (isIncognito) {
+      userMsg = {
+        id: `incognito-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+        role: "user",
+        content: outgoingText,
+        timestamp: Date.now(),
+        status: "complete",
+      };
+    } else {
+      userMsg = await addMessage(convId, {
+        role: "user",
+        content: outgoingText,
+        status: "complete",
+      });
+    }
 
     const prevMessages = messages;
     setMessages((prev) => [...prev, userMsg]);
 
-    if (prevMessages.length === 0) {
+    if (!isIncognito && prevMessages.length === 0) {
       generateTitle(convId, text);
     }
 
@@ -93,10 +110,16 @@ export default function ChatScreen() {
     abortControllerRef.current = controller;
 
     const conversation = conversations.find((c) => c.id === convId);
+    const activeCompanion = getActiveCompanion();
+
     const historyMessages = [...prevMessages, userMsg].map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.content,
     }));
+
+    let effectiveSystemPrompt = activeCompanion
+      ? activeCompanion.systemPrompt
+      : conversation?.systemPrompt || settings.systemPrompt;
 
     let assistantMsgId: string | null = null;
     let fullContent = "";
@@ -108,7 +131,7 @@ export default function ChatScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: historyMessages,
-          systemPrompt: conversation?.systemPrompt || settings.systemPrompt,
+          systemPrompt: effectiveSystemPrompt,
           model: settings.model,
           language: appSettings.language,
         }),
@@ -138,14 +161,27 @@ export default function ChatScreen() {
               if (parsed.content) {
                 if (assistantMsgId === null) {
                   setIsTyping(false);
-                  const assistantMsg = await addMessage(convId, {
-                    role: "assistant",
-                    content: parsed.content,
-                    status: "streaming",
-                  });
-                  assistantMsgId = assistantMsg.id;
-                  fullContent = parsed.content;
-                  setMessages((prev) => [...prev, assistantMsg]);
+                  if (isIncognito) {
+                    assistantMsgId = `incognito-asst-${Date.now()}`;
+                    fullContent = parsed.content;
+                    const assistantMsg: Message = {
+                      id: assistantMsgId,
+                      role: "assistant",
+                      content: fullContent,
+                      timestamp: Date.now(),
+                      status: "streaming",
+                    };
+                    setMessages((prev) => [...prev, assistantMsg]);
+                  } else {
+                    const assistantMsg = await addMessage(convId, {
+                      role: "assistant",
+                      content: parsed.content,
+                      status: "streaming",
+                    });
+                    assistantMsgId = assistantMsg.id;
+                    fullContent = parsed.content;
+                    setMessages((prev) => [...prev, assistantMsg]);
+                  }
                 } else {
                   fullContent += parsed.content;
                   const currentId = assistantMsgId;
@@ -154,10 +190,7 @@ export default function ChatScreen() {
                     const updated = [...prev];
                     const idx = updated.findIndex((m) => m.id === currentId);
                     if (idx !== -1) {
-                      updated[idx] = {
-                        ...updated[idx],
-                        content: currentContent,
-                      };
+                      updated[idx] = { ...updated[idx], content: currentContent };
                     }
                     return updated;
                   });
@@ -171,20 +204,18 @@ export default function ChatScreen() {
       if (assistantMsgId) {
         const currentId = assistantMsgId;
         const currentContent = fullContent;
-        await updateLastMessage(convId, (msg) => ({
-          ...msg,
-          content: currentContent,
-          status: "complete",
-        }));
+        if (!isIncognito) {
+          await updateLastMessage(convId, (msg) => ({
+            ...msg,
+            content: currentContent,
+            status: "complete",
+          }));
+        }
         setMessages((prev) => {
           const updated = [...prev];
           const idx = updated.findIndex((m) => m.id === currentId);
           if (idx !== -1) {
-            updated[idx] = {
-              ...updated[idx],
-              content: currentContent,
-              status: "complete",
-            };
+            updated[idx] = { ...updated[idx], content: currentContent, status: "complete" };
           }
           return updated;
         });
@@ -195,11 +226,13 @@ export default function ChatScreen() {
         if (assistantMsgId) {
           const currentId = assistantMsgId;
           const currentContent = fullContent;
-          await updateLastMessage(convId, (msg) => ({
-            ...msg,
-            content: currentContent || "(cancelled)",
-            status: "cancelled",
-          }));
+          if (!isIncognito) {
+            await updateLastMessage(convId, (msg) => ({
+              ...msg,
+              content: currentContent || "(cancelled)",
+              status: "cancelled",
+            }));
+          }
           setMessages((prev) => {
             const updated = [...prev];
             const idx = updated.findIndex((m) => m.id === currentId);
@@ -210,12 +243,17 @@ export default function ChatScreen() {
           });
         }
       } else {
-        const errorMsg = await addMessage(convId, {
-          role: "assistant",
-          content: "Something went wrong. Please try again.",
-          status: "error",
-        });
-        setMessages((prev) => [...prev, errorMsg]);
+        const errorId = `err-${Date.now()}`;
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: errorId,
+            role: "assistant",
+            content: "Something went wrong. Please try again.",
+            timestamp: Date.now(),
+            status: "error",
+          },
+        ]);
       }
     } finally {
       setIsStreaming(false);
@@ -230,6 +268,10 @@ export default function ChatScreen() {
 
   const handleNewChat = async () => {
     setShowSidebar(false);
+    if (isIncognito) {
+      setMessages([]);
+      return;
+    }
     const id = await createConversation();
     setActiveConversationId(id);
     setMessages([]);
@@ -237,17 +279,14 @@ export default function ChatScreen() {
 
   const handleSelectConversation = async (id: string) => {
     setShowSidebar(false);
+    setIsIncognito(false);
     await loadConversation(id);
   };
 
-  const currentConversation = conversations.find(
-    (c) => c.id === activeConversationId
-  );
-
+  const currentConversation = conversations.find((c) => c.id === activeConversationId);
+  const activeCompanion = getActiveCompanion();
   const reversedMessages = [...messages].reverse();
-
-  const topPadding =
-    Platform.OS === "web" ? 67 : insets.top > 0 ? insets.top : 44;
+  const topPadding = Platform.OS === "web" ? 67 : insets.top > 0 ? insets.top : 44;
 
   return (
     <View style={styles.container}>
@@ -259,17 +298,58 @@ export default function ChatScreen() {
         >
           <Feather name="menu" size={20} color={C.text} />
         </Pressable>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {currentConversation?.title || t.newChat}
-        </Text>
-        <Pressable
-          style={styles.iconBtn}
-          onPress={handleNewChat}
-          testID="new-chat-button"
-        >
-          <Feather name="edit" size={18} color={C.text} />
-        </Pressable>
+
+        <View style={styles.headerCenter}>
+          {isIncognito && (
+            <View style={styles.incognitoBadge}>
+              <Feather name="eye-off" size={11} color="#A78BFA" />
+            </View>
+          )}
+          {activeCompanion && !isIncognito && (
+            <View style={[styles.companionBadge, { backgroundColor: activeCompanion.color + "22" }]}>
+              <Feather name={activeCompanion.icon as any} size={11} color={activeCompanion.color} />
+            </View>
+          )}
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {isIncognito
+              ? "Incognito"
+              : activeCompanion
+              ? activeCompanion.name
+              : currentConversation?.title || t.newChat}
+          </Text>
+        </View>
+
+        <View style={styles.headerRight}>
+          <Pressable
+            style={[styles.iconBtn, isIncognito && styles.iconBtnActive]}
+            onPress={() => {
+              setIsIncognito((prev) => {
+                setMessages([]);
+                return !prev;
+              });
+            }}
+            testID="incognito-toggle"
+            accessibilityRole="button"
+            accessibilityLabel={isIncognito ? "Disable incognito" : "Enable incognito"}
+          >
+            <Feather name="eye-off" size={17} color={isIncognito ? "#A78BFA" : C.textSecondary} />
+          </Pressable>
+          <Pressable
+            style={styles.iconBtn}
+            onPress={handleNewChat}
+            testID="new-chat-button"
+          >
+            <Feather name="edit" size={18} color={C.text} />
+          </Pressable>
+        </View>
       </View>
+
+      {isIncognito && (
+        <View style={styles.incognitoBar}>
+          <Feather name="eye-off" size={13} color="#A78BFA" />
+          <Text style={styles.incognitoBarText}>Incognito — messages are not saved</Text>
+        </View>
+      )}
 
       <KeyboardAvoidingView
         style={styles.flex}
@@ -293,9 +373,21 @@ export default function ChatScreen() {
           ListEmptyComponent={
             !isTyping ? (
               <View style={styles.emptyContainer}>
-                <Feather name="zap" size={36} color={C.primary} />
-                <Text style={styles.emptyTitle}>{t.howCanIHelp}</Text>
-                <Text style={styles.emptySubtitle}>{t.askMeAnything}</Text>
+                {activeCompanion ? (
+                  <>
+                    <View style={[styles.companionEmptyIcon, { backgroundColor: activeCompanion.color + "22" }]}>
+                      <Feather name={activeCompanion.icon as any} size={32} color={activeCompanion.color} />
+                    </View>
+                    <Text style={styles.emptyTitle}>{activeCompanion.name}</Text>
+                    <Text style={styles.emptySubtitle}>{activeCompanion.description}</Text>
+                  </>
+                ) : (
+                  <>
+                    <Feather name="zap" size={36} color={C.primary} />
+                    <Text style={styles.emptyTitle}>{t.howCanIHelp}</Text>
+                    <Text style={styles.emptySubtitle}>{t.askMeAnything}</Text>
+                  </>
+                )}
               </View>
             ) : null
           }
@@ -304,7 +396,10 @@ export default function ChatScreen() {
           onSend={handleSend}
           onStop={handleStop}
           isStreaming={isStreaming}
-          disabled={!activeConversationId}
+          disabled={!activeConversationId && !isIncognito}
+          onCompanionPress={() => setShowCompanions(true)}
+          activeCompanionColor={activeCompanion?.color}
+          activeCompanionIcon={activeCompanion?.icon}
         />
       </KeyboardAvoidingView>
 
@@ -329,6 +424,11 @@ export default function ChatScreen() {
           />
         </View>
       </Modal>
+
+      <CompanionsSheet
+        visible={showCompanions}
+        onClose={() => setShowCompanions(false)}
+      />
     </View>
   );
 }
@@ -351,13 +451,23 @@ function createStyles(C: ReturnType<typeof useColors>) {
       borderBottomWidth: 1,
       borderBottomColor: C.border,
     },
-    headerTitle: {
+    headerCenter: {
       flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      paddingHorizontal: 4,
+    },
+    headerTitle: {
       color: C.text,
       fontSize: 15,
       fontFamily: "Inter_600SemiBold",
-      textAlign: "center",
-      paddingHorizontal: 4,
+      flexShrink: 1,
+    },
+    headerRight: {
+      flexDirection: "row",
+      alignItems: "center",
     },
     iconBtn: {
       width: 40,
@@ -365,6 +475,39 @@ function createStyles(C: ReturnType<typeof useColors>) {
       alignItems: "center",
       justifyContent: "center",
       borderRadius: 8,
+    },
+    iconBtnActive: {
+      backgroundColor: "#A78BFA22",
+    },
+    incognitoBadge: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      backgroundColor: "#A78BFA22",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    companionBadge: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    incognitoBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      backgroundColor: "#A78BFA18",
+      borderBottomWidth: 1,
+      borderBottomColor: "#A78BFA33",
+    },
+    incognitoBarText: {
+      color: "#A78BFA",
+      fontSize: 12,
+      fontFamily: "Inter_400Regular",
     },
     messagesList: {
       paddingVertical: 8,
@@ -392,6 +535,13 @@ function createStyles(C: ReturnType<typeof useColors>) {
       fontFamily: "Inter_400Regular",
       textAlign: "center",
       lineHeight: 20,
+    },
+    companionEmptyIcon: {
+      width: 72,
+      height: 72,
+      borderRadius: 20,
+      alignItems: "center",
+      justifyContent: "center",
     },
     modalContainer: {
       flex: 1,

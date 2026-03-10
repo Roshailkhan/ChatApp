@@ -178,6 +178,27 @@ export function SettingsSheet({ visible, onClose }: Props) {
           </View>
 
           <View style={styles.section}>
+            <Text style={styles.sectionLabel}>PRIVACY</Text>
+            <View style={styles.card}>
+              <Pressable
+                style={styles.optionRow}
+                onPress={() => updateAppSettings({ redactionEnabled: !appSettings.redactionEnabled })}
+              >
+                <View style={styles.optionLeft}>
+                  <Feather name="shield" size={16} color={appSettings.redactionEnabled ? C.primary : C.textSecondary} />
+                  <View>
+                    <Text style={styles.optionText}>Auto PII Redaction</Text>
+                    <Text style={styles.optionDesc}>Masks emails, phones, IDs before sending</Text>
+                  </View>
+                </View>
+                <View style={[styles.toggle, appSettings.redactionEnabled && styles.toggleOn]}>
+                  <View style={[styles.toggleThumb, appSettings.redactionEnabled && styles.toggleThumbOn]} />
+                </View>
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={styles.section}>
             <Text style={styles.sectionLabel}>{t.language}</Text>
             <Text style={styles.sectionHint}>{t.aiRespondsIn}</Text>
             <View style={styles.card}>
@@ -317,6 +338,30 @@ function createStyles(C: ReturnType<typeof useColors>) {
       height: 6,
       borderRadius: 3,
       marginTop: 1,
+    },
+    toggle: {
+      width: 44,
+      height: 26,
+      borderRadius: 13,
+      backgroundColor: C.surface3,
+      borderWidth: 1,
+      borderColor: C.border,
+      justifyContent: "center",
+      paddingHorizontal: 2,
+    },
+    toggleOn: {
+      backgroundColor: C.primary,
+      borderColor: C.primary,
+    },
+    toggleThumb: {
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: C.textTertiary,
+    },
+    toggleThumbOn: {
+      backgroundColor: "#fff",
+      alignSelf: "flex-end",
     },
   });
 }

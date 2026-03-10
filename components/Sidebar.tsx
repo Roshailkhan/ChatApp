@@ -13,7 +13,9 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ConversationItem } from "@/components/ConversationItem";
 import { SettingsSheet } from "@/components/SettingsSheet";
+import { CompanionsSheet } from "@/components/CompanionsSheet";
 import { Conversation, useChatContext } from "@/contexts/ChatContext";
+import { useCompanions } from "@/contexts/CompanionsContext";
 import { useColors } from "@/lib/useColors";
 import { useTranslations } from "@/lib/useTranslations";
 import * as Haptics from "expo-haptics";
@@ -33,12 +35,13 @@ export function Sidebar({
 }: Props) {
   const C = useColors();
   const t = useTranslations();
-  const { conversations, deleteConversation, renameConversation } =
-    useChatContext();
+  const { conversations, deleteConversation, renameConversation } = useChatContext();
+  const { companions, activeCompanionId, setActiveCompanion } = useCompanions();
   const [search, setSearch] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameText, setRenameText] = useState("");
   const [showSettings, setShowSettings] = useState(false);
+  const [showCompanions, setShowCompanions] = useState(false);
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(C), [C]);
 
@@ -92,6 +95,27 @@ export function Sidebar({
           </Pressable>
         </View>
       </View>
+
+      <Pressable style={styles.companionsRow} onPress={() => setShowCompanions(true)}>
+        <View style={styles.companionsLeft}>
+          <Feather name="users" size={15} color={activeCompanionId ? C.primary : C.textSecondary} />
+          <Text style={[styles.companionsText, activeCompanionId && styles.companionsTextActive]}>
+            {activeCompanionId
+              ? companions.find((c) => c.id === activeCompanionId)?.name || "Companion"
+              : "Companions"}
+          </Text>
+        </View>
+        {activeCompanionId ? (
+          <Pressable
+            onPress={(e) => { e.stopPropagation(); setActiveCompanion(null); }}
+            hitSlop={8}
+          >
+            <Feather name="x" size={14} color={C.textTertiary} />
+          </Pressable>
+        ) : (
+          <Feather name="chevron-right" size={14} color={C.textTertiary} />
+        )}
+      </Pressable>
 
       <View style={styles.searchRow}>
         <Feather
@@ -172,6 +196,11 @@ export function Sidebar({
         visible={showSettings}
         onClose={() => setShowSettings(false)}
       />
+
+      <CompanionsSheet
+        visible={showCompanions}
+        onClose={() => setShowCompanions(false)}
+      />
     </View>
   );
 }
@@ -229,6 +258,33 @@ function createStyles(C: ReturnType<typeof useColors>) {
     },
     listContent: {
       paddingBottom: 20,
+    },
+    companionsRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginHorizontal: 12,
+      marginBottom: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      backgroundColor: C.surface2,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    companionsLeft: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+    companionsText: {
+      color: C.textSecondary,
+      fontSize: 13,
+      fontFamily: "Inter_400Regular",
+    },
+    companionsTextActive: {
+      color: C.primary,
+      fontFamily: "Inter_500Medium",
     },
     empty: {
       alignItems: "center",

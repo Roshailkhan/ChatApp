@@ -15,6 +15,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { queryClient } from "@/lib/query-client";
 import { ChatProvider } from "@/contexts/ChatContext";
 import { SettingsProvider } from "@/contexts/SettingsContext";
+import { CompanionsProvider } from "@/contexts/CompanionsContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -49,7 +50,9 @@ export default function RootLayout() {
           <GestureHandlerRootView>
             <KeyboardProvider>
               <ChatProvider>
-                <RootLayoutNav />
+                <CompanionsProvider>
+                  <RootLayoutNav />
+                </CompanionsProvider>
               </ChatProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>
