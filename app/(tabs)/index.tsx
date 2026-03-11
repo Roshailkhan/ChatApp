@@ -562,7 +562,7 @@ export default function ChatScreen() {
           scrollEnabled={!!(reversedMessages.length || isTyping)}
           ListHeaderComponent={
             isTyping ? (
-              <View>
+              <View style={styles.invertFix}>
                 {modeLabel && (
                   <View style={[styles.modeBanner, { backgroundColor: (modeColor || C.primary) + "18" }]}>
                     <Feather
@@ -581,7 +581,7 @@ export default function ChatScreen() {
           }
           ListEmptyComponent={
             !isTyping ? (
-              <View style={styles.emptyContainer}>
+              <View style={[styles.emptyContainer, styles.invertFix]}>
                 {activeCompanion ? (
                   <>
                     <View style={[styles.companionEmptyIcon, { backgroundColor: activeCompanion.color + "22" }]}>
@@ -819,13 +819,15 @@ function createStyles(C: ReturnType<typeof useColors>) {
     emptyList: {
       flexGrow: 1,
     },
+    invertFix: {
+      transform: [{ scaleY: -1 }],
+    },
     emptyContainer: {
       flex: 1,
       alignItems: "center",
       justifyContent: "center",
       paddingHorizontal: 32,
       gap: 12,
-      transform: [{ scaleY: -1 }],
     },
     emptyTitle: {
       color: C.text,
