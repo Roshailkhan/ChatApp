@@ -536,52 +536,52 @@ export default function ChatScreen() {
         behavior="padding"
         keyboardVerticalOffset={0}
       >
-        <FlatList
-          data={reversedMessages}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            item.role === "system" ? (
-              <View style={styles.systemMsgContainer}>
-                <View style={styles.systemMsgBubble}>
-                  <Feather name="link" size={11} color={C.primary} />
-                  <Text style={styles.systemMsgText}>{item.content}</Text>
-                </View>
-              </View>
-            ) : (
-              <MessageBubble message={item} />
-            )
-          )}
-          inverted
-          contentContainerStyle={[
-            styles.messagesList,
-            reversedMessages.length === 0 && !isTyping && styles.emptyList,
-          ]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="interactive"
-          scrollEnabled={!!(reversedMessages.length || isTyping)}
-          ListHeaderComponent={
-            isTyping ? (
-              <View style={styles.invertFix}>
-                {modeLabel && (
-                  <View style={[styles.modeBanner, { backgroundColor: (modeColor || C.primary) + "18" }]}>
-                    <Feather
-                      name={currentMode === "search" ? "globe" : currentMode === "research" ? "layers" : "terminal"}
-                      size={12}
-                      color={modeColor || C.primary}
-                    />
-                    <Text style={[styles.modeBannerText, { color: modeColor || C.primary }]}>
-                      {currentMode === "research" ? "Researching..." : currentMode === "search" ? "Searching the web..." : "Generating code..."}
-                    </Text>
+        <View style={styles.listWrapper}>
+          <FlatList
+            data={reversedMessages}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              item.role === "system" ? (
+                <View style={styles.systemMsgContainer}>
+                  <View style={styles.systemMsgBubble}>
+                    <Feather name="link" size={11} color={C.primary} />
+                    <Text style={styles.systemMsgText}>{item.content}</Text>
                   </View>
-                )}
-                <TypingIndicator />
-              </View>
-            ) : null
-          }
-          ListEmptyComponent={
-            !isTyping ? (
-              <View style={[styles.emptyContainer, styles.invertFix]}>
+                </View>
+              ) : (
+                <MessageBubble message={item} />
+              )
+            )}
+            inverted
+            contentContainerStyle={styles.messagesList}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+            scrollEnabled={!!(reversedMessages.length || isTyping)}
+            ListHeaderComponent={
+              isTyping ? (
+                <View style={styles.invertFix}>
+                  {modeLabel && (
+                    <View style={[styles.modeBanner, { backgroundColor: (modeColor || C.primary) + "18" }]}>
+                      <Feather
+                        name={currentMode === "search" ? "globe" : currentMode === "research" ? "layers" : "terminal"}
+                        size={12}
+                        color={modeColor || C.primary}
+                      />
+                      <Text style={[styles.modeBannerText, { color: modeColor || C.primary }]}>
+                        {currentMode === "research" ? "Researching..." : currentMode === "search" ? "Searching the web..." : "Generating code..."}
+                      </Text>
+                    </View>
+                  )}
+                  <TypingIndicator />
+                </View>
+              ) : null
+            }
+          />
+
+          {reversedMessages.length === 0 && !isTyping && (
+            <View style={[styles.emptyOverlay, { pointerEvents: "box-none" }]}>
+              <View style={styles.emptyContainer}>
                 {activeCompanion ? (
                   <>
                     <View style={[styles.companionEmptyIcon, { backgroundColor: activeCompanion.color + "22" }]}>
@@ -608,9 +608,9 @@ export default function ChatScreen() {
                   </>
                 )}
               </View>
-            ) : null
-          }
-        />
+            </View>
+          )}
+        </View>
         <ChatInput
           onSend={handleSend}
           onStop={handleStop}
@@ -822,8 +822,16 @@ function createStyles(C: ReturnType<typeof useColors>) {
     invertFix: {
       transform: [{ scaleY: -1 }],
     },
-    emptyContainer: {
+    listWrapper: {
       flex: 1,
+      position: "relative",
+    },
+    emptyOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    emptyContainer: {
       alignItems: "center",
       justifyContent: "center",
       paddingHorizontal: 32,
