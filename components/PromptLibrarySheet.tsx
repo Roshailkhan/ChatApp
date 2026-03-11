@@ -105,6 +105,7 @@ export function PromptLibrarySheet({ visible, onClose, onSelect }: Props) {
         <FlatList
           data={filtered}
           keyExtractor={(item) => item.id}
+          style={styles.promptList}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
@@ -184,16 +185,19 @@ function createStyles(C: ReturnType<typeof useColors>) {
       ...(Platform.OS === "web" ? { outlineWidth: 0, outlineStyle: "none" } as any : {}),
     },
     categoryList: {
-      marginTop: 12,
-      maxHeight: 40,
+      flexShrink: 0,
+      marginTop: 10,
+      marginBottom: 2,
     },
     categoryContent: {
       paddingHorizontal: 16,
+      paddingVertical: 6,
       gap: 8,
+      alignItems: "center",
     },
     categoryChip: {
-      paddingHorizontal: 14,
-      paddingVertical: 6,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
       borderRadius: 20,
       backgroundColor: C.surface2,
       borderWidth: 1,
@@ -211,9 +215,14 @@ function createStyles(C: ReturnType<typeof useColors>) {
     categoryTextActive: {
       color: "#fff",
     },
+    promptList: {
+      flex: 1,
+    },
     listContent: {
       padding: 16,
+      paddingTop: 8,
       gap: 10,
+      paddingBottom: 32,
     },
     promptCard: {
       backgroundColor: C.surface,
