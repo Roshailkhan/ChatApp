@@ -14,8 +14,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ConversationItem } from "@/components/ConversationItem";
 import { SettingsSheet } from "@/components/SettingsSheet";
 import { CompanionsSheet } from "@/components/CompanionsSheet";
+import { SpaceSheet } from "@/components/SpaceSheet";
 import { Conversation, useChatContext } from "@/contexts/ChatContext";
 import { useCompanions } from "@/contexts/CompanionsContext";
+import { useSpaces } from "@/contexts/SpacesContext";
 import { useColors } from "@/lib/useColors";
 import { useTranslations } from "@/lib/useTranslations";
 import * as Haptics from "expo-haptics";
@@ -37,11 +39,13 @@ export function Sidebar({
   const t = useTranslations();
   const { conversations, deleteConversation, renameConversation } = useChatContext();
   const { companions, activeCompanionId, setActiveCompanion } = useCompanions();
+  const { spaces, activeSpaceId, setActiveSpace, deleteSpace } = useSpaces();
   const [search, setSearch] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameText, setRenameText] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [showCompanions, setShowCompanions] = useState(false);
+  const [showSpaceSheet, setShowSpaceSheet] = useState(false);
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(C), [C]);
 
@@ -116,6 +120,38 @@ export function Sidebar({
           <Feather name="chevron-right" size={14} color={C.textTertiary} />
         )}
       </Pressable>
+
+      <View style={styles.spacesSection}>
+        <View style={styles.spacesSectionHeader}>
+          <Text style={styles.spacesSectionTitle}>SPACES</Text>
+          <Pressable style={styles.spacesAddBtn} onPress={() => setShowSpaceSheet(true)}>
+            <Feather name="plus" size={14} color={C.primary} />
+          </Pressable>
+        </View>
+        {spaces.length === 0 ? (
+          <Pressable style={styles.spacesEmpty} onPress={() => setShowSpaceSheet(true)}>
+            <Text style={styles.spacesEmptyText}>Create a space for organized chats</Text>
+          </Pressable>
+        ) : (
+          <View style={styles.spacesList}>
+            {spaces.map((space) => (
+              <Pressable
+                key={space.id}
+                style={[styles.spaceItem, activeSpaceId === space.id && styles.spaceItemActive]}
+                onPress={() => setActiveSpace(activeSpaceId === space.id ? null : space.id)}
+              >
+                <Text style={styles.spaceItemEmoji}>{space.emoji}</Text>
+                <Text style={[styles.spaceItemName, activeSpaceId === space.id && styles.spaceItemNameActive]} numberOfLines={1}>
+                  {space.name}
+                </Text>
+                {activeSpaceId === space.id && (
+                  <Feather name="check" size={12} color={C.primary} />
+                )}
+              </Pressable>
+            ))}
+          </View>
+        )}
+      </View>
 
       <View style={styles.searchRow}>
         <Feather
@@ -201,6 +237,11 @@ export function Sidebar({
         visible={showCompanions}
         onClose={() => setShowCompanions(false)}
       />
+
+      <SpaceSheet
+        visible={showSpaceSheet}
+        onClose={() => setShowSpaceSheet(false)}
+      />
     </View>
   );
 }
@@ -283,6 +324,69 @@ function createStyles(C: ReturnType<typeof useColors>) {
       fontFamily: "Inter_400Regular",
     },
     companionsTextActive: {
+      color: C.primary,
+      fontFamily: "Inter_500Medium",
+    },
+    spacesSection: {
+      marginHorizontal: 12,
+      marginBottom: 4,
+    },
+    spacesSectionHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 6,
+      paddingHorizontal: 2,
+    },
+    spacesSectionTitle: {
+      color: C.textTertiary,
+      fontSize: 10,
+      fontFamily: "Inter_600SemiBold",
+      letterSpacing: 0.8,
+    },
+    spacesAddBtn: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      backgroundColor: C.surface2,
+      borderWidth: 1,
+      borderColor: C.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    spacesEmpty: {
+      paddingVertical: 8,
+      paddingHorizontal: 10,
+    },
+    spacesEmptyText: {
+      color: C.textTertiary,
+      fontSize: 12,
+      fontFamily: "Inter_400Regular",
+    },
+    spacesList: {
+      gap: 2,
+    },
+    spaceItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+      borderRadius: 8,
+    },
+    spaceItemActive: {
+      backgroundColor: C.surface2,
+    },
+    spaceItemEmoji: {
+      fontSize: 15,
+    },
+    spaceItemName: {
+      flex: 1,
+      color: C.textSecondary,
+      fontSize: 13,
+      fontFamily: "Inter_400Regular",
+    },
+    spaceItemNameActive: {
       color: C.primary,
       fontFamily: "Inter_500Medium",
     },

@@ -3,16 +3,26 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export type ThemeMode = "dark" | "light" | "system";
 
+export type ToneMode = "formal" | "casual" | "friendly";
+export type VerbosityMode = "concise" | "balanced" | "detailed";
+export type ExpertiseLevel = "beginner" | "intermediate" | "expert";
+
 export interface AppSettings {
   theme: ThemeMode;
   language: string;
   redactionEnabled: boolean;
+  tone: ToneMode;
+  verbosity: VerbosityMode;
+  expertiseLevel: ExpertiseLevel;
 }
 
 const defaultAppSettings: AppSettings = {
   theme: "dark",
   language: "English",
   redactionEnabled: true,
+  tone: "casual",
+  verbosity: "balanced",
+  expertiseLevel: "intermediate",
 };
 
 const APP_SETTINGS_KEY = "app_settings";

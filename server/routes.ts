@@ -18,12 +18,51 @@ const OPENAI_MODELS = new Set([
   "o3-mini",
 ]);
 
-// Models that require max_completion_tokens instead of max_tokens
+const OPENROUTER_MODELS = new Set([
+  "deepseek/deepseek-chat",
+  "qwen/qwen-2.5-72b-instruct",
+  "mistralai/mistral-small-3.1-24b-instruct",
+  "mistralai/mistral-7b-instruct",
+  "anthropic/claude-3.5-sonnet",
+  "google/gemini-pro-1.5",
+]);
+
+const SEARCH_MODEL = "compound-beta";
+
+const RESEARCH_SYSTEM_PROMPT = `You are a deep research assistant. When given a topic or question, provide a comprehensive, structured report with the following sections:
+
+## Executive Summary
+A 2-3 sentence overview of the key findings.
+
+## Key Findings
+Detailed findings with supporting evidence and sources cited inline.
+
+## Multiple Perspectives
+Different viewpoints, counterarguments, or alternative interpretations.
+
+## Confidence Assessment
+Rate your confidence in the information (High/Medium/Low) and explain any limitations.
+
+## Recommendations
+Actionable takeaways or next steps.
+
+Always cite your sources inline when possible. Use clear headings and bullet points for readability.`;
+
 function usesCompletionTokens(model: string): boolean {
   return /^o[0-9]|^gpt-5/i.test(model);
 }
 
 function getClientForModel(model: string): OpenAI {
+  if (OPENROUTER_MODELS.has(model) && process.env.OPENROUTER_API_KEY) {
+    return new OpenAI({
+      apiKey: process.env.OPENROUTER_API_KEY,
+      baseURL: "https://openrouter.ai/api/v1",
+      defaultHeaders: {
+        "HTTP-Referer": "https://privateai.app",
+        "X-Title": "Private AI",
+      },
+    });
+  }
   if (GROQ_MODELS.has(model) && process.env.GROQ_API_KEY) {
     return new OpenAI({
       apiKey: process.env.GROQ_API_KEY,
@@ -61,7 +100,7 @@ function getTitleModel(): string {
 export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/chat", async (req, res) => {
     try {
-      const { messages, systemPrompt, model, language } = req.body;
+      const { messages, systemPrompt, model, language, mode } = req.body;
 
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -69,7 +108,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.flushHeaders();
 
       const allMessages: { role: "system" | "user" | "assistant"; content: string }[] = [];
+
       let effectivePrompt = systemPrompt || "";
+      if (mode === "research") {
+        effectivePrompt = RESEARCH_SYSTEM_PROMPT + (effectivePrompt ? "\n\n" + effectivePrompt : "");
+      }
       if (language && language !== "English") {
         effectivePrompt = effectivePrompt
           ? `${effectivePrompt}\n\nPlease respond in ${language}.`
@@ -80,7 +123,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       allMessages.push(...messages);
 
-      const selectedModel = model || getDefaultModel();
+      let selectedModel = model || getDefaultModel();
+      if (mode === "search" || mode === "research") {
+        selectedModel = SEARCH_MODEL;
+      }
+
       const client = getClientForModel(selectedModel);
 
       const tokenParam = usesCompletionTokens(selectedModel)
@@ -92,12 +139,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
         messages: allMessages,
         stream: true,
         ...tokenParam,
-      });
+      } as any);
 
-      for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content || "";
+      let thinkingBuffer = "";
+      let inThinkTag = false;
+
+      for await (const chunk of stream as any) {
+        const delta = chunk.choices?.[0]?.delta;
+        if (!delta) continue;
+
+        const reasoningContent = (delta as any).reasoning_content || "";
+        if (reasoningContent) {
+          res.write(`data: ${JSON.stringify({ thinking: reasoningContent })}\n\n`);
+        }
+
+        let content = delta.content || "";
         if (content) {
-          res.write(`data: ${JSON.stringify({ content })}\n\n`);
+          if (content.includes("<think>") || inThinkTag) {
+            if (content.includes("<think>")) {
+              const parts = content.split("<think>");
+              if (parts[0]) res.write(`data: ${JSON.stringify({ content: parts[0] })}\n\n`);
+              inThinkTag = true;
+              thinkingBuffer = parts[1] || "";
+              content = "";
+            } else if (inThinkTag) {
+              if (content.includes("</think>")) {
+                const parts = content.split("</think>");
+                thinkingBuffer += parts[0];
+                res.write(`data: ${JSON.stringify({ thinking: thinkingBuffer })}\n\n`);
+                thinkingBuffer = "";
+                inThinkTag = false;
+                content = parts[1] || "";
+              } else {
+                thinkingBuffer += content;
+                content = "";
+              }
+            }
+          }
+          if (content) {
+            res.write(`data: ${JSON.stringify({ content })}\n\n`);
+          }
+        }
+
+        const citations = (chunk as any).citations;
+        if (citations && citations.length > 0) {
+          res.write(`data: ${JSON.stringify({ citations })}\n\n`);
         }
       }
 
@@ -141,6 +227,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (err) {
       console.error("Title error:", err);
       res.json({ title: (req.body.message || "New Chat").substring(0, 40) });
+    }
+  });
+
+  app.post("/api/summarize", async (req, res) => {
+    try {
+      const { messages } = req.body;
+      const summaryModel = getTitleModel();
+      const client = getClientForModel(summaryModel);
+      const tokenParam = usesCompletionTokens(summaryModel)
+        ? { max_completion_tokens: 300 }
+        : { max_tokens: 300 };
+
+      const transcript = (messages as any[])
+        .map((m: any) => `${m.role === "user" ? "User" : "AI"}: ${m.content}`)
+        .join("\n");
+
+      const response = await client.chat.completions.create({
+        model: summaryModel,
+        messages: [
+          {
+            role: "system",
+            content:
+              "Summarize this conversation in 3-5 sentences, capturing the key topics, decisions, and important context. This summary will be injected into a new conversation so the AI can continue where this left off.",
+          },
+          { role: "user", content: transcript },
+        ],
+        ...tokenParam,
+      });
+      const summary = response.choices[0]?.message?.content?.trim() || "";
+      res.json({ summary });
+    } catch (err) {
+      console.error("Summarize error:", err);
+      res.json({ summary: "" });
     }
   });
 

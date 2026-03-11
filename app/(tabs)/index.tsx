@@ -7,23 +7,45 @@ import {
   Pressable,
   Text,
   Modal,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { fetch } from "expo/fetch";
 import { Feather } from "@expo/vector-icons";
-import { ChatInput } from "@/components/ChatInput";
+import { ChatInput, ChatMode } from "@/components/ChatInput";
 import { MessageBubble } from "@/components/MessageBubble";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import { Sidebar } from "@/components/Sidebar";
 import { CompanionsSheet } from "@/components/CompanionsSheet";
+import { PromptLibrarySheet } from "@/components/PromptLibrarySheet";
+import { SpaceSheet } from "@/components/SpaceSheet";
 import { useChatContext, Message } from "@/contexts/ChatContext";
 import { useSettingsContext } from "@/contexts/SettingsContext";
 import { useCompanions } from "@/contexts/CompanionsContext";
+import { useMemory } from "@/contexts/MemoryContext";
+import { useSpaces } from "@/contexts/SpacesContext";
 import { useColors } from "@/lib/useColors";
 import { useTranslations } from "@/lib/useTranslations";
 import { getApiUrl } from "@/lib/query-client";
 import { redactPII } from "@/lib/redact";
+
+function buildPersonalizationPrompt(tone: string, verbosity: string, expertiseLevel: string): string {
+  const parts: string[] = [];
+  if (tone === "formal") parts.push("Use a formal, professional tone.");
+  else if (tone === "friendly") parts.push("Use a warm, friendly, encouraging tone.");
+  else parts.push("Use a natural, conversational tone.");
+
+  if (verbosity === "concise") parts.push("Be concise and to the point. Avoid unnecessary elaboration.");
+  else if (verbosity === "detailed") parts.push("Provide comprehensive, detailed responses with thorough explanations.");
+  else parts.push("Provide balanced responses — not too brief, not too verbose.");
+
+  if (expertiseLevel === "beginner") parts.push("Explain concepts simply, avoid jargon, and use analogies. Assume no prior knowledge.");
+  else if (expertiseLevel === "expert") parts.push("Assume expert-level knowledge. Use technical terminology freely and skip basic explanations.");
+  else parts.push("Assume intermediate knowledge. Define specialized terms when introducing them.");
+
+  return parts.join(" ");
+}
 
 export default function ChatScreen() {
   const C = useColors();
@@ -39,6 +61,8 @@ export default function ChatScreen() {
   } = useChatContext();
   const { appSettings } = useSettingsContext();
   const { getActiveCompanion, activeCompanionId } = useCompanions();
+  const { buildMemoryPrompt } = useMemory();
+  const { getActiveSpace } = useSpaces();
 
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -46,7 +70,16 @@ export default function ChatScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
   const [showCompanions, setShowCompanions] = useState(false);
+  const [showPromptLibrary, setShowPromptLibrary] = useState(false);
+  const [showSpaceSheet, setShowSpaceSheet] = useState(false);
   const [isIncognito, setIsIncognito] = useState(false);
+  const [promptFillText, setPromptFillText] = useState<string | undefined>(undefined);
+  const [currentMode, setCurrentMode] = useState<ChatMode>("chat");
+
+  const [showCarryoverModal, setShowCarryoverModal] = useState(false);
+  const [carryoverSummary, setCarryoverSummary] = useState("");
+  const [isLoadingSummary, setIsLoadingSummary] = useState(false);
+  const pendingNewChatRef = useRef(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const insets = useSafeAreaInsets();
@@ -73,9 +106,10 @@ export default function ChatScreen() {
     setMessages(msgs);
   }
 
-  const handleSend = async (text: string) => {
+  const handleSend = async (text: string, mode: ChatMode) => {
     if (!activeConversationId || isStreaming) return;
     const convId = activeConversationId;
+    setCurrentMode(mode);
 
     const outgoingText = appSettings.redactionEnabled ? redactPII(text) : text;
 
@@ -111,18 +145,44 @@ export default function ChatScreen() {
 
     const conversation = conversations.find((c) => c.id === convId);
     const activeCompanion = getActiveCompanion();
+    const activeSpace = getActiveSpace();
 
     const historyMessages = [...prevMessages, userMsg].map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.content,
     }));
 
-    let effectiveSystemPrompt = activeCompanion
-      ? activeCompanion.systemPrompt
-      : conversation?.systemPrompt || settings.systemPrompt;
+    let systemParts: string[] = [];
+
+    const personalizationPrompt = buildPersonalizationPrompt(
+      appSettings.tone || "casual",
+      appSettings.verbosity || "balanced",
+      appSettings.expertiseLevel || "intermediate"
+    );
+    systemParts.push(personalizationPrompt);
+
+    const memoryPrompt = buildMemoryPrompt();
+    if (memoryPrompt) systemParts.push(memoryPrompt);
+
+    if (activeSpace) {
+      if (activeSpace.context) systemParts.push(`Space Context: ${activeSpace.context}`);
+      if (activeSpace.instructions) systemParts.push(`Space Instructions: ${activeSpace.instructions}`);
+    }
+
+    if (activeCompanion) {
+      systemParts.push(activeCompanion.systemPrompt);
+    } else if (conversation?.systemPrompt) {
+      systemParts.push(conversation.systemPrompt);
+    } else {
+      systemParts.push(settings.systemPrompt);
+    }
+
+    const effectiveSystemPrompt = systemParts.filter(Boolean).join("\n\n");
 
     let assistantMsgId: string | null = null;
     let fullContent = "";
+    let fullThinking = "";
+    let finalCitations: string[] = [];
 
     try {
       const baseUrl = getApiUrl();
@@ -134,6 +194,7 @@ export default function ChatScreen() {
           systemPrompt: effectiveSystemPrompt,
           model: settings.model,
           language: appSettings.language,
+          mode,
         }),
         signal: controller.signal,
       });
@@ -158,6 +219,15 @@ export default function ChatScreen() {
             if (data === "[DONE]") break;
             try {
               const parsed = JSON.parse(data);
+
+              if (parsed.thinking) {
+                fullThinking += parsed.thinking;
+              }
+
+              if (parsed.citations) {
+                finalCitations = parsed.citations;
+              }
+
               if (parsed.content) {
                 if (assistantMsgId === null) {
                   setIsTyping(false);
@@ -204,6 +274,8 @@ export default function ChatScreen() {
       if (assistantMsgId) {
         const currentId = assistantMsgId;
         const currentContent = fullContent;
+        const currentThinking = fullThinking;
+        const currentCitations = finalCitations;
         if (!isIncognito) {
           await updateLastMessage(convId, (msg) => ({
             ...msg,
@@ -215,7 +287,13 @@ export default function ChatScreen() {
           const updated = [...prev];
           const idx = updated.findIndex((m) => m.id === currentId);
           if (idx !== -1) {
-            updated[idx] = { ...updated[idx], content: currentContent, status: "complete" };
+            updated[idx] = {
+              ...updated[idx],
+              content: currentContent,
+              status: "complete",
+              ...(currentThinking ? { thinkingContent: currentThinking } : {}),
+              ...(currentCitations.length > 0 ? { citations: currentCitations } : {}),
+            } as any;
           }
           return updated;
         });
@@ -272,10 +350,44 @@ export default function ChatScreen() {
       setMessages([]);
       return;
     }
+    if (messages.length >= 3) {
+      setIsLoadingSummary(true);
+      setShowCarryoverModal(true);
+      try {
+        const baseUrl = getApiUrl();
+        const res = await fetch(`${baseUrl}api/summarize`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: messages.map((m) => ({ role: m.role, content: m.content })) }),
+        });
+        const { summary } = await res.json();
+        setCarryoverSummary(summary || "");
+      } catch {
+        setCarryoverSummary("");
+      } finally {
+        setIsLoadingSummary(false);
+      }
+    } else {
+      await doCreateNewChat(null);
+    }
+  };
+
+  async function doCreateNewChat(summary: string | null) {
     const id = await createConversation();
     setActiveConversationId(id);
-    setMessages([]);
-  };
+    if (summary) {
+      const carryMsg: Message = {
+        id: `carry-${Date.now()}`,
+        role: "system" as any,
+        content: `Context from previous conversation: ${summary}`,
+        timestamp: Date.now(),
+        status: "complete",
+      };
+      setMessages([carryMsg]);
+    } else {
+      setMessages([]);
+    }
+  }
 
   const handleSelectConversation = async (id: string) => {
     setShowSidebar(false);
@@ -285,8 +397,12 @@ export default function ChatScreen() {
 
   const currentConversation = conversations.find((c) => c.id === activeConversationId);
   const activeCompanion = getActiveCompanion();
+  const activeSpace = getActiveSpace();
   const reversedMessages = [...messages].reverse();
   const topPadding = Platform.OS === "web" ? 67 : insets.top > 0 ? insets.top : 44;
+
+  const modeLabel = currentMode === "search" ? "Web Search" : currentMode === "research" ? "Deep Research" : null;
+  const modeColor = currentMode === "search" ? "#3B82F6" : currentMode === "research" ? "#8B5CF6" : null;
 
   return (
     <View style={styles.container}>
@@ -310,9 +426,14 @@ export default function ChatScreen() {
               <Feather name={activeCompanion.icon as any} size={11} color={activeCompanion.color} />
             </View>
           )}
+          {activeSpace && !isIncognito && (
+            <Text style={styles.spaceEmoji}>{activeSpace.emoji}</Text>
+          )}
           <Text style={styles.headerTitle} numberOfLines={1}>
             {isIncognito
               ? "Incognito"
+              : activeSpace
+              ? activeSpace.name
               : activeCompanion
               ? activeCompanion.name
               : currentConversation?.title || t.newChat}
@@ -351,6 +472,16 @@ export default function ChatScreen() {
         </View>
       )}
 
+      {activeSpace && !isIncognito && (
+        <View style={styles.spaceBar}>
+          <Text style={styles.spaceBarEmoji}>{activeSpace.emoji}</Text>
+          <Text style={styles.spaceBarText}>{activeSpace.name}</Text>
+          {activeSpace.context ? (
+            <Text style={styles.spaceBarHint} numberOfLines={1}>· {activeSpace.context}</Text>
+          ) : null}
+        </View>
+      )}
+
       <KeyboardAvoidingView
         style={styles.flex}
         behavior="padding"
@@ -359,7 +490,18 @@ export default function ChatScreen() {
         <FlatList
           data={reversedMessages}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <MessageBubble message={item} />}
+          renderItem={({ item }) => (
+            item.role === "system" ? (
+              <View style={styles.systemMsgContainer}>
+                <View style={styles.systemMsgBubble}>
+                  <Feather name="link" size={11} color={C.primary} />
+                  <Text style={styles.systemMsgText}>{item.content}</Text>
+                </View>
+              </View>
+            ) : (
+              <MessageBubble message={item} />
+            )
+          )}
           inverted
           contentContainerStyle={[
             styles.messagesList,
@@ -369,7 +511,21 @@ export default function ChatScreen() {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           scrollEnabled={!!(reversedMessages.length || isTyping)}
-          ListHeaderComponent={isTyping ? <TypingIndicator /> : null}
+          ListHeaderComponent={
+            isTyping ? (
+              <View>
+                {(currentMode === "search" || currentMode === "research") && (
+                  <View style={[styles.modeBanner, { backgroundColor: (modeColor || C.primary) + "18" }]}>
+                    <Feather name={currentMode === "search" ? "globe" : "layers"} size={12} color={modeColor || C.primary} />
+                    <Text style={[styles.modeBannerText, { color: modeColor || C.primary }]}>
+                      {currentMode === "research" ? "Researching..." : "Searching the web..."}
+                    </Text>
+                  </View>
+                )}
+                <TypingIndicator />
+              </View>
+            ) : null
+          }
           ListEmptyComponent={
             !isTyping ? (
               <View style={styles.emptyContainer}>
@@ -381,11 +537,21 @@ export default function ChatScreen() {
                     <Text style={styles.emptyTitle}>{activeCompanion.name}</Text>
                     <Text style={styles.emptySubtitle}>{activeCompanion.description}</Text>
                   </>
+                ) : activeSpace ? (
+                  <>
+                    <Text style={styles.spaceEmptyEmoji}>{activeSpace.emoji}</Text>
+                    <Text style={styles.emptyTitle}>{activeSpace.name}</Text>
+                    <Text style={styles.emptySubtitle}>{activeSpace.context || "Your contextual workspace"}</Text>
+                  </>
                 ) : (
                   <>
                     <Feather name="zap" size={36} color={C.primary} />
                     <Text style={styles.emptyTitle}>{t.howCanIHelp}</Text>
                     <Text style={styles.emptySubtitle}>{t.askMeAnything}</Text>
+                    <Pressable style={styles.promptLibraryBtn} onPress={() => setShowPromptLibrary(true)}>
+                      <Feather name="book-open" size={14} color={C.primary} />
+                      <Text style={styles.promptLibraryBtnText}>Browse Prompt Library</Text>
+                    </Pressable>
                   </>
                 )}
               </View>
@@ -400,6 +566,9 @@ export default function ChatScreen() {
           onCompanionPress={() => setShowCompanions(true)}
           activeCompanionColor={activeCompanion?.color}
           activeCompanionIcon={activeCompanion?.icon}
+          onPromptLibraryPress={() => setShowPromptLibrary(true)}
+          fillText={promptFillText}
+          onFillTextConsumed={() => setPromptFillText(undefined)}
         />
       </KeyboardAvoidingView>
 
@@ -425,9 +594,66 @@ export default function ChatScreen() {
         </View>
       </Modal>
 
+      <Modal
+        visible={showCarryoverModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowCarryoverModal(false)}
+      >
+        <View style={styles.carryoverOverlay}>
+          <View style={styles.carryoverCard}>
+            <Text style={styles.carryoverTitle}>Start New Chat</Text>
+            <Text style={styles.carryoverDesc}>
+              {isLoadingSummary
+                ? "Generating context summary..."
+                : carryoverSummary
+                ? "Carry context from this conversation into the new one?"
+                : "Start a fresh conversation?"}
+            </Text>
+            {!!carryoverSummary && !isLoadingSummary && (
+              <View style={styles.carryoverSummaryBox}>
+                <Text style={styles.carryoverSummaryText}>{carryoverSummary}</Text>
+              </View>
+            )}
+            <View style={styles.carryoverActions}>
+              <Pressable
+                style={styles.carryoverBtnSecondary}
+                onPress={async () => {
+                  setShowCarryoverModal(false);
+                  await doCreateNewChat(null);
+                }}
+              >
+                <Text style={styles.carryoverBtnSecondaryText}>Start Fresh</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.carryoverBtnPrimary, (!carryoverSummary || isLoadingSummary) && styles.carryoverBtnDisabled]}
+                disabled={!carryoverSummary || isLoadingSummary}
+                onPress={async () => {
+                  setShowCarryoverModal(false);
+                  await doCreateNewChat(carryoverSummary);
+                }}
+              >
+                <Text style={styles.carryoverBtnPrimaryText}>Carry Context</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <CompanionsSheet
         visible={showCompanions}
         onClose={() => setShowCompanions(false)}
+      />
+
+      <PromptLibrarySheet
+        visible={showPromptLibrary}
+        onClose={() => setShowPromptLibrary(false)}
+        onSelect={(text) => setPromptFillText(text)}
+      />
+
+      <SpaceSheet
+        visible={showSpaceSheet}
+        onClose={() => setShowSpaceSheet(false)}
       />
     </View>
   );
@@ -494,6 +720,9 @@ function createStyles(C: ReturnType<typeof useColors>) {
       alignItems: "center",
       justifyContent: "center",
     },
+    spaceEmoji: {
+      fontSize: 16,
+    },
     incognitoBar: {
       flexDirection: "row",
       alignItems: "center",
@@ -508,6 +737,28 @@ function createStyles(C: ReturnType<typeof useColors>) {
       color: "#A78BFA",
       fontSize: 12,
       fontFamily: "Inter_400Regular",
+    },
+    spaceBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: 14,
+      paddingVertical: 7,
+      backgroundColor: C.surface2,
+      borderBottomWidth: 1,
+      borderBottomColor: C.border,
+    },
+    spaceBarEmoji: { fontSize: 13 },
+    spaceBarText: {
+      color: C.textSecondary,
+      fontSize: 12,
+      fontFamily: "Inter_500Medium",
+    },
+    spaceBarHint: {
+      color: C.textTertiary,
+      fontSize: 12,
+      fontFamily: "Inter_400Regular",
+      flex: 1,
     },
     messagesList: {
       paddingVertical: 8,
@@ -543,6 +794,65 @@ function createStyles(C: ReturnType<typeof useColors>) {
       alignItems: "center",
       justifyContent: "center",
     },
+    spaceEmptyEmoji: {
+      fontSize: 48,
+    },
+    promptLibraryBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginTop: 4,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: C.primary + "55",
+      backgroundColor: C.primary + "11",
+    },
+    promptLibraryBtnText: {
+      color: C.primary,
+      fontSize: 13,
+      fontFamily: "Inter_500Medium",
+    },
+    modeBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: 16,
+      paddingVertical: 6,
+      marginHorizontal: 16,
+      marginBottom: 4,
+      borderRadius: 8,
+    },
+    modeBannerText: {
+      fontSize: 12,
+      fontFamily: "Inter_500Medium",
+    },
+    systemMsgContainer: {
+      paddingHorizontal: 16,
+      paddingVertical: 4,
+      alignItems: "center",
+    },
+    systemMsgBubble: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 6,
+      backgroundColor: C.surface2,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: C.border,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      maxWidth: "90%",
+    },
+    systemMsgText: {
+      color: C.textSecondary,
+      fontSize: 12,
+      fontFamily: "Inter_400Regular",
+      lineHeight: 18,
+      flex: 1,
+      fontStyle: "italic",
+    },
     modalContainer: {
       flex: 1,
       flexDirection: "row",
@@ -554,6 +864,84 @@ function createStyles(C: ReturnType<typeof useColors>) {
     modalOverlay: {
       flex: 1,
       backgroundColor: "rgba(0,0,0,0.5)",
+    },
+    carryoverOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.6)",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 24,
+    },
+    carryoverCard: {
+      backgroundColor: C.surface,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: C.border,
+      padding: 24,
+      width: "100%",
+      maxWidth: 380,
+    },
+    carryoverTitle: {
+      color: C.text,
+      fontSize: 18,
+      fontFamily: "Inter_600SemiBold",
+      marginBottom: 8,
+    },
+    carryoverDesc: {
+      color: C.textSecondary,
+      fontSize: 14,
+      fontFamily: "Inter_400Regular",
+      lineHeight: 20,
+      marginBottom: 12,
+    },
+    carryoverSummaryBox: {
+      backgroundColor: C.surface2,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: C.border,
+      padding: 12,
+      marginBottom: 16,
+    },
+    carryoverSummaryText: {
+      color: C.textSecondary,
+      fontSize: 13,
+      fontFamily: "Inter_400Regular",
+      lineHeight: 19,
+      fontStyle: "italic",
+    },
+    carryoverActions: {
+      flexDirection: "row",
+      gap: 10,
+      marginTop: 4,
+    },
+    carryoverBtnSecondary: {
+      flex: 1,
+      paddingVertical: 12,
+      borderRadius: 12,
+      alignItems: "center",
+      backgroundColor: C.surface2,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    carryoverBtnSecondaryText: {
+      color: C.textSecondary,
+      fontSize: 15,
+      fontFamily: "Inter_500Medium",
+    },
+    carryoverBtnPrimary: {
+      flex: 1,
+      paddingVertical: 12,
+      borderRadius: 12,
+      alignItems: "center",
+      backgroundColor: C.primary,
+    },
+    carryoverBtnDisabled: {
+      backgroundColor: C.surface3,
+    },
+    carryoverBtnPrimaryText: {
+      color: "#fff",
+      fontSize: 15,
+      fontFamily: "Inter_600SemiBold",
     },
   });
 }

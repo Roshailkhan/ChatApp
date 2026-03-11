@@ -1,4 +1,4 @@
-import React, { memo, useMemo } from "react";
+import React, { memo, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -13,9 +13,11 @@ import { useColors } from "@/lib/useColors";
 import { Message } from "@/contexts/ChatContext";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { useMemory } from "@/contexts/MemoryContext";
 
 interface Props {
   message: Message;
+  onSaveMemory?: (text: string) => void;
 }
 
 function CodeBlock({
@@ -49,6 +51,8 @@ function CodeBlock({
 function MessageBubbleInner({ message }: Props) {
   const C = useColors();
   const styles = useMemo(() => createStyles(C), [C]);
+  const { addMemory } = useMemory();
+  const [thinkingExpanded, setThinkingExpanded] = useState(false);
 
   const markdownStyles = useMemo(
     () => ({
@@ -145,6 +149,34 @@ function MessageBubbleInner({ message }: Props) {
     },
   };
 
+  const handleLongPress = async () => {
+    if (!isUser && message.content) {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      Alert.alert(
+        "Message Actions",
+        undefined,
+        [
+          {
+            text: "Copy",
+            onPress: () => Clipboard.setString(message.content),
+          },
+          {
+            text: "Save as Memory",
+            onPress: async () => {
+              const snippet = message.content.substring(0, 200);
+              await addMemory(snippet, "manual");
+              Alert.alert("Saved", "Added to your memory.");
+            },
+          },
+          { text: "Cancel", style: "cancel" },
+        ]
+      );
+    }
+  };
+
+  const thinkingContent = (message as any).thinkingContent as string | undefined;
+  const citations = (message as any).citations as string[] | undefined;
+
   if (isUser) {
     return (
       <View style={styles.userContainer}>
@@ -156,22 +188,54 @@ function MessageBubbleInner({ message }: Props) {
   }
 
   return (
-    <View style={styles.assistantContainer}>
-      <View style={styles.assistantIcon}>
-        <Feather name="zap" size={13} color={C.primary} />
+    <Pressable onLongPress={handleLongPress} delayLongPress={500}>
+      <View style={styles.assistantContainer}>
+        <View style={styles.assistantIcon}>
+          <Feather name="zap" size={13} color={C.primary} />
+        </View>
+        <View style={styles.assistantContent}>
+          {!!thinkingContent && (
+            <Pressable
+              style={styles.thinkingHeader}
+              onPress={() => setThinkingExpanded((v) => !v)}
+            >
+              <Feather name="cpu" size={12} color={C.primary} />
+              <Text style={styles.thinkingLabel}>Thinking</Text>
+              <Feather
+                name={thinkingExpanded ? "chevron-up" : "chevron-down"}
+                size={12}
+                color={C.textTertiary}
+              />
+            </Pressable>
+          )}
+          {!!thinkingContent && thinkingExpanded && (
+            <View style={styles.thinkingBody}>
+              <Text style={styles.thinkingText}>{thinkingContent}</Text>
+            </View>
+          )}
+          <Markdown style={markdownStyles} rules={rules}>
+            {message.content || " "}
+          </Markdown>
+          {citations && citations.length > 0 && (
+            <View style={styles.citationsContainer}>
+              <Text style={styles.citationsLabel}>Sources</Text>
+              {citations.map((url: string, i: number) => (
+                <View key={i} style={styles.citationChip}>
+                  <Feather name="link" size={10} color={C.primary} />
+                  <Text style={styles.citationText} numberOfLines={1}>{url}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+          {message.status === "error" && (
+            <Text style={styles.errorText}>Failed to get response</Text>
+          )}
+          {message.status === "cancelled" && (
+            <Text style={styles.cancelledText}>Cancelled</Text>
+          )}
+        </View>
       </View>
-      <View style={styles.assistantContent}>
-        <Markdown style={markdownStyles} rules={rules}>
-          {message.content || " "}
-        </Markdown>
-        {message.status === "error" && (
-          <Text style={styles.errorText}>Failed to get response</Text>
-        )}
-        {message.status === "cancelled" && (
-          <Text style={styles.cancelledText}>Cancelled</Text>
-        )}
-      </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -266,6 +330,64 @@ function createStyles(C: ReturnType<typeof useColors>) {
         android: "monospace",
         default: "monospace",
       }),
+    },
+    thinkingHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginBottom: 6,
+      paddingVertical: 4,
+    },
+    thinkingLabel: {
+      color: C.primary,
+      fontSize: 12,
+      fontFamily: "Inter_500Medium",
+      flex: 1,
+    },
+    thinkingBody: {
+      backgroundColor: C.surface2,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: C.border,
+      borderLeftWidth: 3,
+      borderLeftColor: C.primary,
+      padding: 10,
+      marginBottom: 8,
+    },
+    thinkingText: {
+      color: C.textTertiary,
+      fontSize: 12,
+      fontFamily: "Inter_400Regular",
+      lineHeight: 18,
+      fontStyle: "italic",
+    },
+    citationsContainer: {
+      marginTop: 10,
+      gap: 4,
+    },
+    citationsLabel: {
+      color: C.textTertiary,
+      fontSize: 11,
+      fontFamily: "Inter_600SemiBold",
+      letterSpacing: 0.5,
+      marginBottom: 4,
+    },
+    citationChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      backgroundColor: C.surface2,
+      borderRadius: 6,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    citationText: {
+      color: C.primary,
+      fontSize: 11,
+      fontFamily: "Inter_400Regular",
+      flex: 1,
     },
   });
 }

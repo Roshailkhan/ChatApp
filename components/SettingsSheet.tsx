@@ -10,8 +10,9 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useSettingsContext, ThemeMode } from "@/contexts/SettingsContext";
+import { useSettingsContext, ThemeMode, ToneMode, VerbosityMode, ExpertiseLevel } from "@/contexts/SettingsContext";
 import { useChatContext } from "@/contexts/ChatContext";
+import { useMemory } from "@/contexts/MemoryContext";
 import { useColors } from "@/lib/useColors";
 import { useTranslations } from "@/lib/useTranslations";
 
@@ -46,15 +47,23 @@ const LANGUAGES = [
 
 const MODEL_GROUPS: ProviderGroup[] = [
   {
-    provider: "groq",
-    label: "Groq",
-    color: "#F55036",
+    provider: "openrouter-open",
+    label: "Open Source (via OpenRouter)",
+    color: "#7C3AED",
     models: [
-      { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B", desc: "Most capable" },
-      { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B", desc: "Fastest" },
-      { id: "meta-llama/llama-4-scout-17b-16e-instruct", name: "Llama 4 Scout", desc: "Latest" },
-      { id: "compound-beta", name: "Compound Beta", desc: "Multi-tool" },
-      { id: "compound-beta-mini", name: "Compound Mini", desc: "Fast multi-tool" },
+      { id: "deepseek/deepseek-chat", name: "DeepSeek V3", desc: "Strong reasoning, coding • 0.05x cost" },
+      { id: "qwen/qwen-2.5-72b-instruct", name: "Qwen 2.5 72B", desc: "Multilingual, balanced • 0.02x cost" },
+      { id: "mistralai/mistral-small-3.1-24b-instruct", name: "Mistral Small 24B", desc: "Fast, efficient • 0.01x cost" },
+      { id: "mistralai/mistral-7b-instruct", name: "Mistral 7B", desc: "Ultra-fast, lightweight • free" },
+    ],
+  },
+  {
+    provider: "openrouter-closed",
+    label: "Premium (via OpenRouter)",
+    color: "#EC4899",
+    models: [
+      { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet", desc: "Nuanced writing, long context • 1.0x" },
+      { id: "google/gemini-pro-1.5", name: "Gemini Pro 1.5", desc: "Fast, multilingual • 0.8x cost" },
     ],
   },
   {
@@ -62,11 +71,22 @@ const MODEL_GROUPS: ProviderGroup[] = [
     label: "OpenAI",
     color: "#10A37F",
     models: [
-      { id: "gpt-4.1", name: "GPT-4.1", desc: "Most capable" },
-      { id: "gpt-4.1-mini", name: "GPT-4.1 Mini", desc: "Fast" },
-      { id: "gpt-4o", name: "GPT-4o", desc: "Powerful" },
-      { id: "gpt-4o-mini", name: "GPT-4o Mini", desc: "Lightweight" },
-      { id: "o3-mini", name: "o3 Mini", desc: "Reasoning" },
+      { id: "gpt-4o", name: "GPT-4o", desc: "Broad knowledge, multimodal • 1.0x" },
+      { id: "gpt-4o-mini", name: "GPT-4o Mini", desc: "Fast, lightweight • 0.2x" },
+      { id: "gpt-4.1", name: "GPT-4.1", desc: "Latest generation • 1.0x" },
+      { id: "o3-mini", name: "o3 Mini", desc: "Advanced reasoning • 1.0x" },
+    ],
+  },
+  {
+    provider: "groq",
+    label: "Groq (Speed-Optimized)",
+    color: "#F55036",
+    models: [
+      { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B", desc: "Most capable, fast" },
+      { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B", desc: "Fastest responses" },
+      { id: "meta-llama/llama-4-scout-17b-16e-instruct", name: "Llama 4 Scout", desc: "Latest Llama" },
+      { id: "compound-beta", name: "Compound Beta", desc: "Web search + tools" },
+      { id: "compound-beta-mini", name: "Compound Mini", desc: "Fast web search" },
     ],
   },
 ];
@@ -76,6 +96,7 @@ export function SettingsSheet({ visible, onClose }: Props) {
   const insets = useSafeAreaInsets();
   const { appSettings, updateAppSettings } = useSettingsContext();
   const { settings, updateSettings } = useChatContext();
+  const { memories, deleteMemory, clearAllMemories } = useMemory();
 
   const t = useTranslations();
   const styles = useMemo(() => createStyles(C), [C]);
@@ -178,6 +199,56 @@ export function SettingsSheet({ visible, onClose }: Props) {
           </View>
 
           <View style={styles.section}>
+            <Text style={styles.sectionLabel}>PERSONALIZATION</Text>
+            <Text style={styles.sectionHint}>Customize how the AI communicates with you</Text>
+
+            <Text style={styles.subLabel}>Tone</Text>
+            <View style={styles.chipRow}>
+              {(["formal", "casual", "friendly"] as ToneMode[]).map((t) => (
+                <Pressable
+                  key={t}
+                  style={[styles.chip, appSettings.tone === t && styles.chipActive]}
+                  onPress={() => updateAppSettings({ tone: t })}
+                >
+                  <Text style={[styles.chipText, appSettings.tone === t && styles.chipTextActive]}>
+                    {t.charAt(0).toUpperCase() + t.slice(1)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.subLabel}>Verbosity</Text>
+            <View style={styles.chipRow}>
+              {(["concise", "balanced", "detailed"] as VerbosityMode[]).map((v) => (
+                <Pressable
+                  key={v}
+                  style={[styles.chip, appSettings.verbosity === v && styles.chipActive]}
+                  onPress={() => updateAppSettings({ verbosity: v })}
+                >
+                  <Text style={[styles.chipText, appSettings.verbosity === v && styles.chipTextActive]}>
+                    {v.charAt(0).toUpperCase() + v.slice(1)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.subLabel}>Expertise Level</Text>
+            <View style={styles.chipRow}>
+              {(["beginner", "intermediate", "expert"] as ExpertiseLevel[]).map((e) => (
+                <Pressable
+                  key={e}
+                  style={[styles.chip, appSettings.expertiseLevel === e && styles.chipActive]}
+                  onPress={() => updateAppSettings({ expertiseLevel: e })}
+                >
+                  <Text style={[styles.chipText, appSettings.expertiseLevel === e && styles.chipTextActive]}>
+                    {e.charAt(0).toUpperCase() + e.slice(1)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.section}>
             <Text style={styles.sectionLabel}>PRIVACY</Text>
             <View style={styles.card}>
               <Pressable
@@ -196,6 +267,33 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 </View>
               </Pressable>
             </View>
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionLabel}>MEMORY ({memories.length})</Text>
+              {memories.length > 0 && (
+                <Pressable onPress={clearAllMemories} hitSlop={8}>
+                  <Text style={styles.clearAllText}>Clear All</Text>
+                </Pressable>
+              )}
+            </View>
+            {memories.length === 0 ? (
+              <View style={styles.memoryEmpty}>
+                <Text style={styles.memoryEmptyText}>No memories saved yet. Long-press any AI message to save a memory.</Text>
+              </View>
+            ) : (
+              <View style={styles.card}>
+                {memories.map((mem, i) => (
+                  <View key={mem.id} style={[styles.memoryRow, i < memories.length - 1 && styles.optionRowBorder]}>
+                    <Text style={styles.memoryText} numberOfLines={2}>{mem.text}</Text>
+                    <Pressable onPress={() => deleteMemory(mem.id)} hitSlop={8}>
+                      <Feather name="trash-2" size={14} color={C.error} />
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
 
           <View style={styles.section}>
@@ -362,6 +460,78 @@ function createStyles(C: ReturnType<typeof useColors>) {
     toggleThumbOn: {
       backgroundColor: "#fff",
       alignSelf: "flex-end",
+    },
+    subLabel: {
+      color: C.textSecondary,
+      fontSize: 12,
+      fontFamily: "Inter_500Medium",
+      marginTop: 12,
+      marginBottom: 6,
+      marginLeft: 2,
+    },
+    chipRow: {
+      flexDirection: "row",
+      gap: 8,
+      flexWrap: "wrap",
+    },
+    chip: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 20,
+      backgroundColor: C.surface,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    chipActive: {
+      backgroundColor: C.primary,
+      borderColor: C.primary,
+    },
+    chipText: {
+      color: C.textSecondary,
+      fontSize: 13,
+      fontFamily: "Inter_500Medium",
+    },
+    chipTextActive: {
+      color: "#fff",
+    },
+    sectionHeaderRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 8,
+      marginHorizontal: 4,
+    },
+    clearAllText: {
+      color: C.error,
+      fontSize: 12,
+      fontFamily: "Inter_500Medium",
+    },
+    memoryEmpty: {
+      backgroundColor: C.surface,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: C.border,
+      padding: 16,
+    },
+    memoryEmptyText: {
+      color: C.textTertiary,
+      fontSize: 13,
+      fontFamily: "Inter_400Regular",
+      lineHeight: 18,
+    },
+    memoryRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      gap: 12,
+    },
+    memoryText: {
+      flex: 1,
+      color: C.text,
+      fontSize: 13,
+      fontFamily: "Inter_400Regular",
+      lineHeight: 18,
     },
   });
 }

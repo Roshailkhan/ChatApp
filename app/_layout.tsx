@@ -16,6 +16,8 @@ import { queryClient } from "@/lib/query-client";
 import { ChatProvider } from "@/contexts/ChatContext";
 import { SettingsProvider } from "@/contexts/SettingsContext";
 import { CompanionsProvider } from "@/contexts/CompanionsContext";
+import { MemoryProvider } from "@/contexts/MemoryContext";
+import { SpacesProvider } from "@/contexts/SpacesContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -50,9 +52,13 @@ export default function RootLayout() {
           <GestureHandlerRootView>
             <KeyboardProvider>
               <ChatProvider>
-                <CompanionsProvider>
-                  <RootLayoutNav />
-                </CompanionsProvider>
+                <MemoryProvider>
+                  <SpacesProvider>
+                    <CompanionsProvider>
+                      <RootLayoutNav />
+                    </CompanionsProvider>
+                  </SpacesProvider>
+                </MemoryProvider>
               </ChatProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>
