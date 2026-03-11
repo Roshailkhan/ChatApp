@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useSettingsContext, ThemeMode, ToneMode, VerbosityMode, ExpertiseLevel } from "@/contexts/SettingsContext";
+import { useSettingsContext, ThemeMode, ToneMode, VerbosityMode, ExpertiseLevel, LearnedStyle } from "@/contexts/SettingsContext";
 import { useChatContext } from "@/contexts/ChatContext";
 import { useMemory } from "@/contexts/MemoryContext";
 import { useColors } from "@/lib/useColors";
@@ -94,7 +94,7 @@ const MODEL_GROUPS: ProviderGroup[] = [
 export function SettingsSheet({ visible, onClose }: Props) {
   const C = useColors();
   const insets = useSafeAreaInsets();
-  const { appSettings, updateAppSettings } = useSettingsContext();
+  const { appSettings, updateAppSettings, resetLearnedStyle } = useSettingsContext();
   const { settings, updateSettings } = useChatContext();
   const { memories, deleteMemory, clearAllMemories } = useMemory();
 
@@ -246,6 +246,46 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 </Pressable>
               ))}
             </View>
+
+            {appSettings.learnedStyle.updatedAt > 0 && (
+              <View style={styles.learnedCard}>
+                <View style={styles.learnedHeader}>
+                  <Feather name="activity" size={13} color={C.primary} />
+                  <Text style={styles.learnedTitle}>Learned Preferences</Text>
+                  <Pressable onPress={resetLearnedStyle} hitSlop={8}>
+                    <Text style={styles.learnedReset}>Reset</Text>
+                  </Pressable>
+                </View>
+                <View style={styles.learnedTags}>
+                  {appSettings.learnedStyle.prefersBullets && (
+                    <View style={styles.learnedTag}>
+                      <Text style={styles.learnedTagText}>Prefers bullet points</Text>
+                    </View>
+                  )}
+                  {appSettings.learnedStyle.prefersExamples && (
+                    <View style={styles.learnedTag}>
+                      <Text style={styles.learnedTagText}>Likes examples</Text>
+                    </View>
+                  )}
+                  {appSettings.learnedStyle.prefersConcise && (
+                    <View style={styles.learnedTag}>
+                      <Text style={styles.learnedTagText}>Prefers concise answers</Text>
+                    </View>
+                  )}
+                  {appSettings.learnedStyle.domains.map((d) => (
+                    <View key={d} style={[styles.learnedTag, styles.learnedTagDomain]}>
+                      <Text style={[styles.learnedTagText, styles.learnedTagDomainText]}>{d}</Text>
+                    </View>
+                  ))}
+                  {!appSettings.learnedStyle.prefersBullets &&
+                    !appSettings.learnedStyle.prefersExamples &&
+                    !appSettings.learnedStyle.prefersConcise &&
+                    appSettings.learnedStyle.domains.length === 0 && (
+                      <Text style={styles.learnedEmpty}>Keep chatting — preferences are learned over time.</Text>
+                    )}
+                </View>
+              </View>
+            )}
           </View>
 
           <View style={styles.section}>
@@ -532,6 +572,62 @@ function createStyles(C: ReturnType<typeof useColors>) {
       fontSize: 13,
       fontFamily: "Inter_400Regular",
       lineHeight: 18,
+    },
+    learnedCard: {
+      marginTop: 14,
+      backgroundColor: C.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: C.primary + "33",
+      padding: 12,
+    },
+    learnedHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginBottom: 10,
+    },
+    learnedTitle: {
+      color: C.primary,
+      fontSize: 13,
+      fontFamily: "Inter_500Medium",
+      flex: 1,
+    },
+    learnedReset: {
+      color: C.error,
+      fontSize: 12,
+      fontFamily: "Inter_400Regular",
+    },
+    learnedTags: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 6,
+    },
+    learnedTag: {
+      backgroundColor: C.surface2,
+      borderRadius: 20,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    learnedTagText: {
+      color: C.textSecondary,
+      fontSize: 11,
+      fontFamily: "Inter_400Regular",
+    },
+    learnedTagDomain: {
+      backgroundColor: C.primary + "18",
+      borderColor: C.primary + "44",
+    },
+    learnedTagDomainText: {
+      color: C.primary,
+    },
+    learnedEmpty: {
+      color: C.textTertiary,
+      fontSize: 12,
+      fontFamily: "Inter_400Regular",
+      fontStyle: "italic",
     },
   });
 }

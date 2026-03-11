@@ -13,7 +13,7 @@ import { useTranslations } from "@/lib/useTranslations";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-export type ChatMode = "chat" | "search" | "research";
+export type ChatMode = "chat" | "search" | "research" | "code";
 
 interface Props {
   onSend: (text: string, mode: ChatMode) => void;
@@ -76,13 +76,16 @@ export function ChatInput({
 
   const canSend = text.trim().length > 0 && !isStreaming && !disabled;
 
-  const modeColor = mode === "search" ? "#3B82F6" : mode === "research" ? "#8B5CF6" : C.primary;
+  const modeColor =
+    mode === "search" ? "#3B82F6" :
+    mode === "research" ? "#8B5CF6" :
+    mode === "code" ? "#10B981" :
+    C.primary;
   const placeholder =
-    mode === "search"
-      ? "Search the web..."
-      : mode === "research"
-      ? "Deep research topic..."
-      : t.messagePlaceholder;
+    mode === "search" ? "Search the web..." :
+    mode === "research" ? "Deep research topic..." :
+    mode === "code" ? "Describe the code you need..." :
+    t.messagePlaceholder;
 
   return (
     <View
@@ -131,15 +134,22 @@ export function ChatInput({
         >
           <Feather name="layers" size={14} color={mode === "research" ? "#8B5CF6" : C.textTertiary} />
         </Pressable>
+        <Pressable
+          style={[styles.modeBtn, mode === "code" && { backgroundColor: "#10B98122", borderColor: "#10B98155" }]}
+          onPress={() => toggleMode("code")}
+          testID="code-mode-btn"
+        >
+          <Feather name="terminal" size={14} color={mode === "code" ? "#10B981" : C.textTertiary} />
+        </Pressable>
         {onPromptLibraryPress && (
           <Pressable style={styles.modeBtn} onPress={onPromptLibraryPress} testID="prompt-library-btn">
             <Feather name="book-open" size={14} color={C.textTertiary} />
           </Pressable>
         )}
-        {(mode === "search" || mode === "research") && (
+        {(mode === "search" || mode === "research" || mode === "code") && (
           <View style={[styles.modeBadge, { backgroundColor: modeColor + "22" }]}>
             <Text style={[styles.modeBadgeText, { color: modeColor }]}>
-              {mode === "search" ? "Web Search" : "Deep Research"}
+              {mode === "search" ? "Web Search" : mode === "research" ? "Deep Research" : "Code Mode"}
             </Text>
           </View>
         )}
@@ -184,7 +194,7 @@ export function ChatInput({
             disabled={!canSend}
           >
             <Feather
-              name={mode === "search" ? "globe" : mode === "research" ? "layers" : "arrow-up"}
+              name={mode === "search" ? "globe" : mode === "research" ? "layers" : mode === "code" ? "terminal" : "arrow-up"}
               size={18}
               color={canSend ? "#fff" : C.textTertiary}
             />
@@ -266,7 +276,7 @@ function createStyles(C: ReturnType<typeof useColors>) {
       fontFamily: "Inter_400Regular",
       padding: 0,
       ...(Platform.OS === "web"
-        ? { outlineWidth: 0, outlineStyle: "none", borderWidth: 0 }
+        ? { outlineWidth: 0, borderWidth: 0 }
         : {}),
     },
     sendButton: {

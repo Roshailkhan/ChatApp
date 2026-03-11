@@ -9,6 +9,8 @@ export interface Companion {
   color: string;
   systemPrompt: string;
   isCustom?: boolean;
+  tools?: string[];
+  defaultModel?: string;
 }
 
 export const BUILT_IN_COMPANIONS: Companion[] = [
@@ -45,6 +47,7 @@ Always:
     description: "Deep research & fact-checking",
     icon: "search",
     color: "#10B981",
+    tools: ["research", "search"],
     systemPrompt: `You are a Research Assistant AI. You help users gather information, fact-check claims, and synthesize knowledge from multiple domains.
 Always:
 - Cite limitations of your knowledge
@@ -58,6 +61,8 @@ Always:
     description: "Debug, review & write code",
     icon: "code",
     color: "#3B82F6",
+    tools: ["code"],
+    defaultModel: "deepseek/deepseek-chat",
     systemPrompt: `You are an expert Software Engineer AI. You help users write, debug, review, and understand code across all programming languages.
 Always:
 - Write clean, readable, well-commented code
@@ -88,6 +93,7 @@ IMPORTANT: Always clarify that your responses are educational only, not personal
 ];
 
 const CUSTOM_COMPANIONS_KEY = "custom_companions";
+const COMPANION_MEMORY_PREFIX = "memory_companion_";
 
 interface CompanionsContextType {
   companions: Companion[];
@@ -96,6 +102,7 @@ interface CompanionsContextType {
   createCustomCompanion: (c: Omit<Companion, "id" | "isCustom">) => Promise<void>;
   deleteCustomCompanion: (id: string) => Promise<void>;
   getActiveCompanion: () => Companion | null;
+  getCompanionMemoryKey: (companionId: string) => string;
 }
 
 const CompanionsContext = createContext<CompanionsContextType | null>(null);
@@ -121,6 +128,10 @@ export function CompanionsProvider({ children }: { children: React.ReactNode }) 
     return companions.find((c) => c.id === activeCompanionId) ?? null;
   }
 
+  function getCompanionMemoryKey(companionId: string): string {
+    return `${COMPANION_MEMORY_PREFIX}${companionId}`;
+  }
+
   async function createCustomCompanion(c: Omit<Companion, "id" | "isCustom">) {
     const newCompanion: Companion = {
       ...c,
@@ -136,6 +147,7 @@ export function CompanionsProvider({ children }: { children: React.ReactNode }) 
     const updated = customCompanions.filter((c) => c.id !== id);
     setCustomCompanions(updated);
     await AsyncStorage.setItem(CUSTOM_COMPANIONS_KEY, JSON.stringify(updated));
+    await AsyncStorage.removeItem(getCompanionMemoryKey(id));
     if (activeCompanionId === id) setActiveCompanionId(null);
   }
 
@@ -148,6 +160,7 @@ export function CompanionsProvider({ children }: { children: React.ReactNode }) 
         createCustomCompanion,
         deleteCustomCompanion,
         getActiveCompanion,
+        getCompanionMemoryKey,
       }}
     >
       {children}

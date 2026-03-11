@@ -21,7 +21,7 @@ import { CompanionsSheet } from "@/components/CompanionsSheet";
 import { PromptLibrarySheet } from "@/components/PromptLibrarySheet";
 import { SpaceSheet } from "@/components/SpaceSheet";
 import { useChatContext, Message } from "@/contexts/ChatContext";
-import { useSettingsContext } from "@/contexts/SettingsContext";
+import { useSettingsContext, LearnedStyle } from "@/contexts/SettingsContext";
 import { useCompanions } from "@/contexts/CompanionsContext";
 import { useMemory } from "@/contexts/MemoryContext";
 import { useSpaces } from "@/contexts/SpacesContext";
@@ -30,13 +30,13 @@ import { useTranslations } from "@/lib/useTranslations";
 import { getApiUrl } from "@/lib/query-client";
 import { redactPII } from "@/lib/redact";
 
-function buildPersonalizationPrompt(tone: string, verbosity: string, expertiseLevel: string): string {
+function buildPersonalizationPrompt(tone: string, verbosity: string, expertiseLevel: string, learnedStyle?: LearnedStyle): string {
   const parts: string[] = [];
   if (tone === "formal") parts.push("Use a formal, professional tone.");
   else if (tone === "friendly") parts.push("Use a warm, friendly, encouraging tone.");
   else parts.push("Use a natural, conversational tone.");
 
-  if (verbosity === "concise") parts.push("Be concise and to the point. Avoid unnecessary elaboration.");
+  if (verbosity === "concise" || learnedStyle?.prefersConcise) parts.push("Be concise and to the point. Avoid unnecessary elaboration.");
   else if (verbosity === "detailed") parts.push("Provide comprehensive, detailed responses with thorough explanations.");
   else parts.push("Provide balanced responses — not too brief, not too verbose.");
 
@@ -44,7 +44,37 @@ function buildPersonalizationPrompt(tone: string, verbosity: string, expertiseLe
   else if (expertiseLevel === "expert") parts.push("Assume expert-level knowledge. Use technical terminology freely and skip basic explanations.");
   else parts.push("Assume intermediate knowledge. Define specialized terms when introducing them.");
 
+  if (learnedStyle?.prefersBullets) parts.push("When listing multiple items or steps, prefer using bullet points or numbered lists.");
+  if (learnedStyle?.prefersExamples) parts.push("Include concrete examples to illustrate concepts.");
+  if (learnedStyle && learnedStyle.domains.length > 0) {
+    parts.push(`The user frequently asks about: ${learnedStyle.domains.join(", ")}. Tailor context appropriately.`);
+  }
+
   return parts.join(" ");
+}
+
+const DOMAIN_KEYWORDS: Record<string, string[]> = {
+  programming: ["code", "function", "algorithm", "debug", "javascript", "python", "typescript", "api", "react", "sql"],
+  finance: ["stock", "investment", "portfolio", "budget", "trading", "crypto", "dividend", "etf", "market"],
+  health: ["exercise", "diet", "nutrition", "symptom", "medication", "fitness", "sleep", "mental health"],
+  science: ["physics", "chemistry", "biology", "experiment", "quantum", "molecular", "hypothesis"],
+  law: ["contract", "legal", "lawsuit", "attorney", "regulation", "compliance", "liability"],
+  marketing: ["seo", "campaign", "branding", "conversion", "funnel", "audience", "analytics"],
+};
+
+function inferPersonalization(userMessages: string[]): Partial<LearnedStyle> {
+  const combined = userMessages.join(" ").toLowerCase();
+  const prefersBullets = /\b(bullet|list|points?|numbered|outline)\b/.test(combined);
+  const prefersConcise = /\b(shorter|brief|concise|tldr|summarize|quick)\b/.test(combined);
+  const prefersExamples = /\b(example|show me|for instance|demonstrate|illustrate|like what)\b/.test(combined);
+
+  const detectedDomains: string[] = [];
+  for (const [domain, keywords] of Object.entries(DOMAIN_KEYWORDS)) {
+    const matches = keywords.filter((kw) => combined.includes(kw)).length;
+    if (matches >= 2) detectedDomains.push(domain);
+  }
+
+  return { prefersBullets, prefersConcise, prefersExamples, domains: detectedDomains };
 }
 
 export default function ChatScreen() {
@@ -59,9 +89,9 @@ export default function ChatScreen() {
     settings,
     generateTitle,
   } = useChatContext();
-  const { appSettings } = useSettingsContext();
+  const { appSettings, updateLearnedStyle } = useSettingsContext();
   const { getActiveCompanion, activeCompanionId } = useCompanions();
-  const { buildMemoryPrompt } = useMemory();
+  const { buildMemoryPrompt, buildCompanionMemoryPrompt } = useMemory();
   const { getActiveSpace } = useSpaces();
 
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
@@ -157,11 +187,17 @@ export default function ChatScreen() {
     const personalizationPrompt = buildPersonalizationPrompt(
       appSettings.tone || "casual",
       appSettings.verbosity || "balanced",
-      appSettings.expertiseLevel || "intermediate"
+      appSettings.expertiseLevel || "intermediate",
+      appSettings.learnedStyle
     );
     systemParts.push(personalizationPrompt);
 
-    const memoryPrompt = buildMemoryPrompt();
+    let memoryPrompt = "";
+    if (activeCompanion) {
+      memoryPrompt = await buildCompanionMemoryPrompt(activeCompanion.id);
+    } else {
+      memoryPrompt = buildMemoryPrompt();
+    }
     if (memoryPrompt) systemParts.push(memoryPrompt);
 
     if (activeSpace) {
@@ -185,6 +221,7 @@ export default function ChatScreen() {
     let finalCitations: string[] = [];
 
     try {
+      const effectiveModel = activeCompanion?.defaultModel || settings.model;
       const baseUrl = getApiUrl();
       const response = await fetch(`${baseUrl}api/chat`, {
         method: "POST",
@@ -192,7 +229,7 @@ export default function ChatScreen() {
         body: JSON.stringify({
           messages: historyMessages,
           systemPrompt: effectiveSystemPrompt,
-          model: settings.model,
+          model: effectiveModel,
           language: appSettings.language,
           mode,
         }),
@@ -297,6 +334,15 @@ export default function ChatScreen() {
           }
           return updated;
         });
+
+        if (!isIncognito) {
+          const recentUserMessages = [...prevMessages, userMsg]
+            .filter((m) => m.role === "user")
+            .slice(-5)
+            .map((m) => m.content);
+          const inferred = inferPersonalization(recentUserMessages);
+          await updateLearnedStyle(inferred);
+        }
       }
     } catch (err: any) {
       setIsTyping(false);
@@ -344,13 +390,16 @@ export default function ChatScreen() {
     abortControllerRef.current?.abort();
   };
 
-  const handleNewChat = async () => {
+  const pendingSpaceIdRef = useRef<string | undefined>(undefined);
+
+  const handleNewChat = async (spaceId?: string) => {
     setShowSidebar(false);
+    pendingSpaceIdRef.current = spaceId;
     if (isIncognito) {
       setMessages([]);
       return;
     }
-    if (messages.length >= 3) {
+    if (!spaceId && messages.length >= 3) {
       setIsLoadingSummary(true);
       setShowCarryoverModal(true);
       try {
@@ -368,12 +417,12 @@ export default function ChatScreen() {
         setIsLoadingSummary(false);
       }
     } else {
-      await doCreateNewChat(null);
+      await doCreateNewChat(null, spaceId);
     }
   };
 
-  async function doCreateNewChat(summary: string | null) {
-    const id = await createConversation();
+  async function doCreateNewChat(summary: string | null, spaceId?: string) {
+    const id = await createConversation(spaceId);
     setActiveConversationId(id);
     if (summary) {
       const carryMsg: Message = {
@@ -401,8 +450,8 @@ export default function ChatScreen() {
   const reversedMessages = [...messages].reverse();
   const topPadding = Platform.OS === "web" ? 67 : insets.top > 0 ? insets.top : 44;
 
-  const modeLabel = currentMode === "search" ? "Web Search" : currentMode === "research" ? "Deep Research" : null;
-  const modeColor = currentMode === "search" ? "#3B82F6" : currentMode === "research" ? "#8B5CF6" : null;
+  const modeLabel = currentMode === "search" ? "Web Search" : currentMode === "research" ? "Deep Research" : currentMode === "code" ? "Code Mode" : null;
+  const modeColor = currentMode === "search" ? "#3B82F6" : currentMode === "research" ? "#8B5CF6" : currentMode === "code" ? "#10B981" : null;
 
   return (
     <View style={styles.container}>
@@ -457,7 +506,7 @@ export default function ChatScreen() {
           </Pressable>
           <Pressable
             style={styles.iconBtn}
-            onPress={handleNewChat}
+            onPress={() => handleNewChat()}
             testID="new-chat-button"
           >
             <Feather name="edit" size={18} color={C.text} />
@@ -514,11 +563,15 @@ export default function ChatScreen() {
           ListHeaderComponent={
             isTyping ? (
               <View>
-                {(currentMode === "search" || currentMode === "research") && (
+                {modeLabel && (
                   <View style={[styles.modeBanner, { backgroundColor: (modeColor || C.primary) + "18" }]}>
-                    <Feather name={currentMode === "search" ? "globe" : "layers"} size={12} color={modeColor || C.primary} />
+                    <Feather
+                      name={currentMode === "search" ? "globe" : currentMode === "research" ? "layers" : "terminal"}
+                      size={12}
+                      color={modeColor || C.primary}
+                    />
                     <Text style={[styles.modeBannerText, { color: modeColor || C.primary }]}>
-                      {currentMode === "research" ? "Researching..." : "Searching the web..."}
+                      {currentMode === "research" ? "Researching..." : currentMode === "search" ? "Searching the web..." : "Generating code..."}
                     </Text>
                   </View>
                 )}
@@ -620,7 +673,7 @@ export default function ChatScreen() {
                 style={styles.carryoverBtnSecondary}
                 onPress={async () => {
                   setShowCarryoverModal(false);
-                  await doCreateNewChat(null);
+                  await doCreateNewChat(null, pendingSpaceIdRef.current);
                 }}
               >
                 <Text style={styles.carryoverBtnSecondaryText}>Start Fresh</Text>
@@ -630,7 +683,7 @@ export default function ChatScreen() {
                 disabled={!carryoverSummary || isLoadingSummary}
                 onPress={async () => {
                   setShowCarryoverModal(false);
-                  await doCreateNewChat(carryoverSummary);
+                  await doCreateNewChat(carryoverSummary, pendingSpaceIdRef.current);
                 }}
               >
                 <Text style={styles.carryoverBtnPrimaryText}>Carry Context</Text>

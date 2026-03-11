@@ -3,8 +3,6 @@ import React, {
   useContext,
   useState,
   useEffect,
-  useCallback,
-  useRef,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -23,6 +21,7 @@ export interface Conversation {
   updatedAt: number;
   model: string;
   systemPrompt: string;
+  spaceId?: string;
 }
 
 export interface Settings {
@@ -45,28 +44,21 @@ const defaultSettings: Settings = {
 let msgCounter = 0;
 function generateId(): string {
   msgCounter++;
-  return `id-${Date.now()}-${msgCounter}-${Math.random()
-    .toString(36)
-    .substr(2, 9)}`;
+  return `id-${Date.now()}-${msgCounter}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
 interface ChatContextType {
   conversations: Conversation[];
   settings: Settings;
-  createConversation: () => Promise<string>;
+  createConversation: (spaceId?: string) => Promise<string>;
   deleteConversation: (id: string) => Promise<void>;
   renameConversation: (id: string, title: string) => Promise<void>;
   getMessages: (conversationId: string) => Promise<Message[]>;
-  addMessage: (
-    conversationId: string,
-    message: Omit<Message, "id" | "timestamp">
-  ) => Promise<Message>;
-  updateLastMessage: (
-    conversationId: string,
-    updater: (msg: Message) => Message
-  ) => Promise<void>;
+  addMessage: (conversationId: string, message: Omit<Message, "id" | "timestamp">) => Promise<Message>;
+  updateLastMessage: (conversationId: string, updater: (msg: Message) => Message) => Promise<void>;
   updateSettings: (s: Partial<Settings>) => Promise<void>;
   generateTitle: (conversationId: string, firstMessage: string) => Promise<void>;
+  getSpaceConversations: (spaceId: string) => Conversation[];
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -86,8 +78,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.getItem(SETTINGS_KEY),
       ]);
       if (convRaw) setConversations(JSON.parse(convRaw));
-      if (settingsRaw)
-        setSettings({ ...defaultSettings, ...JSON.parse(settingsRaw) });
+      if (settingsRaw) setSettings({ ...defaultSettings, ...JSON.parse(settingsRaw) });
     } catch (e) {
       console.error("Failed to load data:", e);
     }
@@ -98,7 +89,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setConversations(convs);
   }
 
-  async function createConversation(): Promise<string> {
+  async function createConversation(spaceId?: string): Promise<string> {
     const id = generateId();
     const conv: Conversation = {
       id,
@@ -107,6 +98,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       updatedAt: Date.now(),
       model: settings.model,
       systemPrompt: settings.systemPrompt,
+      ...(spaceId ? { spaceId } : {}),
     };
     const updated = [conv, ...conversations];
     await saveConversations(updated);
@@ -120,9 +112,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function renameConversation(id: string, title: string) {
-    const updated = conversations.map((c) =>
-      c.id === id ? { ...c, title } : c
-    );
+    const updated = conversations.map((c) => (c.id === id ? { ...c, title } : c));
     await saveConversations(updated);
   }
 
@@ -132,37 +122,22 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function saveMessages(conversationId: string, messages: Message[]) {
-    await AsyncStorage.setItem(
-      `messages_${conversationId}`,
-      JSON.stringify(messages)
-    );
+    await AsyncStorage.setItem(`messages_${conversationId}`, JSON.stringify(messages));
   }
 
-  async function addMessage(
-    conversationId: string,
-    message: Omit<Message, "id" | "timestamp">
-  ): Promise<Message> {
-    const newMsg: Message = {
-      ...message,
-      id: generateId(),
-      timestamp: Date.now(),
-    };
+  async function addMessage(conversationId: string, message: Omit<Message, "id" | "timestamp">): Promise<Message> {
+    const newMsg: Message = { ...message, id: generateId(), timestamp: Date.now() };
     const existing = await getMessages(conversationId);
     const updated = [...existing, newMsg];
     await saveMessages(conversationId, updated);
-
     const updatedConvs = conversations.map((c) =>
       c.id === conversationId ? { ...c, updatedAt: Date.now() } : c
     );
     await saveConversations(updatedConvs);
-
     return newMsg;
   }
 
-  async function updateLastMessage(
-    conversationId: string,
-    updater: (msg: Message) => Message
-  ) {
+  async function updateLastMessage(conversationId: string, updater: (msg: Message) => Message) {
     const existing = await getMessages(conversationId);
     if (existing.length === 0) return;
     const updated = [...existing];
@@ -188,11 +163,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       const { title } = await res.json();
       if (title) await renameConversation(conversationId, title);
     } catch {
-      await renameConversation(
-        conversationId,
-        firstMessage.substring(0, 40)
-      );
+      await renameConversation(conversationId, firstMessage.substring(0, 40));
     }
+  }
+
+  function getSpaceConversations(spaceId: string): Conversation[] {
+    return conversations.filter((c) => c.spaceId === spaceId);
   }
 
   return (
@@ -208,6 +184,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         updateLastMessage,
         updateSettings,
         generateTitle,
+        getSpaceConversations,
       }}
     >
       {children}

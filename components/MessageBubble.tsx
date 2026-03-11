@@ -14,36 +14,62 @@ import { Message } from "@/contexts/ChatContext";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useMemory } from "@/contexts/MemoryContext";
+import { scoreSource } from "@/lib/credibility";
 
 interface Props {
   message: Message;
   onSaveMemory?: (text: string) => void;
 }
 
-function CodeBlock({
-  children,
-  language,
-}: {
-  children: string;
-  language?: string;
-}) {
+function CodeBlock({ children, language }: { children: string; language?: string }) {
   const C = useColors();
   const styles = useMemo(() => createStyles(C), [C]);
+  const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Clipboard.setString(children);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <View style={styles.codeBlock}>
       <View style={styles.codeHeader}>
         <Text style={styles.codeLanguage}>{language || "code"}</Text>
-        <Pressable onPress={handleCopy} hitSlop={8}>
-          <Feather name="copy" size={13} color={C.textSecondary} />
+        <Pressable onPress={handleCopy} hitSlop={8} style={styles.copyBtn}>
+          <Feather name={copied ? "check" : "copy"} size={13} color={copied ? "#10B981" : C.textSecondary} />
+          <Text style={[styles.copyText, copied && styles.copyTextDone]}>
+            {copied ? "Copied!" : "Copy"}
+          </Text>
         </Pressable>
       </View>
       <Text style={styles.codeText}>{children}</Text>
+    </View>
+  );
+}
+
+function CitationChip({ url, index }: { url: string; index: number }) {
+  const C = useColors();
+  const styles = useMemo(() => createStyles(C), [C]);
+  const cred = useMemo(() => scoreSource(url), [url]);
+
+  let displayUrl = url;
+  try {
+    const parsed = new URL(url.startsWith("http") ? url : `https://${url}`);
+    displayUrl = parsed.hostname.replace(/^www\./, "") + (parsed.pathname !== "/" ? parsed.pathname.substring(0, 20) : "");
+  } catch {}
+
+  return (
+    <View style={styles.citationChip}>
+      <View style={[styles.credBadge, { backgroundColor: cred.color + "22" }]}>
+        <Text style={[styles.credScore, { color: cred.color }]}>{cred.score}</Text>
+      </View>
+      <Feather name="link" size={10} color={C.primary} />
+      <Text style={styles.citationText} numberOfLines={1}>{displayUrl}</Text>
+      <View style={[styles.credLabel, { backgroundColor: cred.color + "18" }]}>
+        <Text style={[styles.credLabelText, { color: cred.color }]}>{cred.label}</Text>
+      </View>
     </View>
   );
 }
@@ -56,49 +82,16 @@ function MessageBubbleInner({ message }: Props) {
 
   const markdownStyles = useMemo(
     () => ({
-      body: {
-        color: C.text,
-        fontSize: 15,
-        lineHeight: 22,
-        fontFamily: "Inter_400Regular",
-      },
-      heading1: {
-        color: C.text,
-        fontFamily: "Inter_700Bold",
-        fontSize: 20,
-        marginTop: 8,
-        marginBottom: 4,
-      },
-      heading2: {
-        color: C.text,
-        fontFamily: "Inter_600SemiBold",
-        fontSize: 17,
-        marginTop: 6,
-        marginBottom: 4,
-      },
-      heading3: {
-        color: C.text,
-        fontFamily: "Inter_600SemiBold",
-        fontSize: 15,
-        marginTop: 4,
-        marginBottom: 2,
-      },
-      paragraph: {
-        marginTop: 0,
-        marginBottom: 4,
-        color: C.text,
-        fontSize: 15,
-        lineHeight: 22,
-      },
+      body: { color: C.text, fontSize: 15, lineHeight: 22, fontFamily: "Inter_400Regular" },
+      heading1: { color: C.text, fontFamily: "Inter_700Bold", fontSize: 20, marginTop: 8, marginBottom: 4 },
+      heading2: { color: C.text, fontFamily: "Inter_600SemiBold", fontSize: 17, marginTop: 6, marginBottom: 4 },
+      heading3: { color: C.text, fontFamily: "Inter_600SemiBold", fontSize: 15, marginTop: 4, marginBottom: 2 },
+      paragraph: { marginTop: 0, marginBottom: 4, color: C.text, fontSize: 15, lineHeight: 22 },
       list_item: { color: C.text, fontSize: 15, lineHeight: 22 },
       code_inline: {
         backgroundColor: C.surface3,
         color: C.primaryLight,
-        fontFamily: Platform.select({
-          ios: "Menlo",
-          android: "monospace",
-          default: "monospace",
-        }),
+        fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }),
         fontSize: 13,
         paddingHorizontal: 4,
         paddingVertical: 1,
@@ -116,13 +109,7 @@ function MessageBubbleInner({ message }: Props) {
       },
       hr: { backgroundColor: C.border, height: 1, marginVertical: 12 },
       table: { borderWidth: 1, borderColor: C.border, borderRadius: 6 },
-      th: {
-        backgroundColor: C.surface2,
-        color: C.text,
-        fontFamily: "Inter_600SemiBold",
-        padding: 8,
-        borderColor: C.border,
-      },
+      th: { backgroundColor: C.surface2, color: C.text, fontFamily: "Inter_600SemiBold", padding: 8, borderColor: C.border },
       td: { color: C.text, padding: 8, borderColor: C.border },
       strong: { fontFamily: "Inter_600SemiBold", color: C.text },
       em: { color: C.text, fontStyle: "italic" as const },
@@ -137,11 +124,7 @@ function MessageBubbleInner({ message }: Props) {
     fence: (node: any, children: any, parent: any, ruleStyles: any) => {
       const content = node.content || "";
       const lang = node.sourceInfo || "";
-      return (
-        <CodeBlock key={node.key} language={lang}>
-          {content}
-        </CodeBlock>
-      );
+      return <CodeBlock key={node.key} language={lang}>{content}</CodeBlock>;
     },
     code_block: (node: any) => {
       const content = node.content || "";
@@ -156,10 +139,7 @@ function MessageBubbleInner({ message }: Props) {
         "Message Actions",
         undefined,
         [
-          {
-            text: "Copy",
-            onPress: () => Clipboard.setString(message.content),
-          },
+          { text: "Copy", onPress: () => Clipboard.setString(message.content) },
           {
             text: "Save as Memory",
             onPress: async () => {
@@ -195,17 +175,10 @@ function MessageBubbleInner({ message }: Props) {
         </View>
         <View style={styles.assistantContent}>
           {!!thinkingContent && (
-            <Pressable
-              style={styles.thinkingHeader}
-              onPress={() => setThinkingExpanded((v) => !v)}
-            >
+            <Pressable style={styles.thinkingHeader} onPress={() => setThinkingExpanded((v) => !v)}>
               <Feather name="cpu" size={12} color={C.primary} />
               <Text style={styles.thinkingLabel}>Thinking</Text>
-              <Feather
-                name={thinkingExpanded ? "chevron-up" : "chevron-down"}
-                size={12}
-                color={C.textTertiary}
-              />
+              <Feather name={thinkingExpanded ? "chevron-up" : "chevron-down"} size={12} color={C.textTertiary} />
             </Pressable>
           )}
           {!!thinkingContent && thinkingExpanded && (
@@ -218,12 +191,12 @@ function MessageBubbleInner({ message }: Props) {
           </Markdown>
           {citations && citations.length > 0 && (
             <View style={styles.citationsContainer}>
-              <Text style={styles.citationsLabel}>Sources</Text>
+              <View style={styles.citationsHeader}>
+                <Feather name="globe" size={11} color={C.textTertiary} />
+                <Text style={styles.citationsLabel}>Sources</Text>
+              </View>
               {citations.map((url: string, i: number) => (
-                <View key={i} style={styles.citationChip}>
-                  <Feather name="link" size={10} color={C.primary} />
-                  <Text style={styles.citationText} numberOfLines={1}>{url}</Text>
-                </View>
+                <CitationChip key={i} url={url} index={i} />
               ))}
             </View>
           )}
@@ -243,11 +216,7 @@ export const MessageBubble = memo(MessageBubbleInner);
 
 function createStyles(C: ReturnType<typeof useColors>) {
   return StyleSheet.create({
-    userContainer: {
-      paddingHorizontal: 16,
-      paddingVertical: 6,
-      alignItems: "flex-end",
-    },
+    userContainer: { paddingHorizontal: 16, paddingVertical: 6, alignItems: "flex-end" },
     userBubble: {
       backgroundColor: C.userBubble,
       borderColor: C.userBubbleBorder,
@@ -258,45 +227,16 @@ function createStyles(C: ReturnType<typeof useColors>) {
       paddingVertical: 10,
       maxWidth: "85%",
     },
-    userText: {
-      color: C.text,
-      fontSize: 15,
-      lineHeight: 22,
-      fontFamily: "Inter_400Regular",
-    },
-    assistantContainer: {
-      flexDirection: "row",
-      paddingHorizontal: 16,
-      paddingVertical: 6,
-      alignItems: "flex-start",
-      gap: 10,
-    },
+    userText: { color: C.text, fontSize: 15, lineHeight: 22, fontFamily: "Inter_400Regular" },
+    assistantContainer: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 6, alignItems: "flex-start", gap: 10 },
     assistantIcon: {
-      width: 28,
-      height: 28,
-      borderRadius: 14,
-      backgroundColor: C.surface2,
-      alignItems: "center",
-      justifyContent: "center",
-      marginTop: 2,
-      flexShrink: 0,
-      borderWidth: 1,
-      borderColor: C.border,
+      width: 28, height: 28, borderRadius: 14,
+      backgroundColor: C.surface2, alignItems: "center", justifyContent: "center",
+      marginTop: 2, flexShrink: 0, borderWidth: 1, borderColor: C.border,
     },
     assistantContent: { flex: 1 },
-    errorText: {
-      color: C.error,
-      fontSize: 13,
-      fontFamily: "Inter_400Regular",
-      marginTop: 4,
-    },
-    cancelledText: {
-      color: C.textTertiary,
-      fontSize: 13,
-      fontFamily: "Inter_400Regular",
-      marginTop: 4,
-      fontStyle: "italic",
-    },
+    errorText: { color: C.error, fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 4 },
+    cancelledText: { color: C.textTertiary, fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 4, fontStyle: "italic" },
     codeBlock: {
       backgroundColor: C.surface2,
       borderRadius: 8,
@@ -315,35 +255,19 @@ function createStyles(C: ReturnType<typeof useColors>) {
       borderBottomColor: C.border,
       backgroundColor: C.surface3,
     },
-    codeLanguage: {
-      color: C.textSecondary,
-      fontSize: 12,
-      fontFamily: "Inter_500Medium",
-    },
+    codeLanguage: { color: C.textSecondary, fontSize: 12, fontFamily: "Inter_500Medium" },
+    copyBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
+    copyText: { color: C.textSecondary, fontSize: 11, fontFamily: "Inter_400Regular" },
+    copyTextDone: { color: "#10B981" },
     codeText: {
       color: C.text,
       fontSize: 13,
       lineHeight: 20,
       padding: 12,
-      fontFamily: Platform.select({
-        ios: "Menlo",
-        android: "monospace",
-        default: "monospace",
-      }),
+      fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }),
     },
-    thinkingHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      marginBottom: 6,
-      paddingVertical: 4,
-    },
-    thinkingLabel: {
-      color: C.primary,
-      fontSize: 12,
-      fontFamily: "Inter_500Medium",
-      flex: 1,
-    },
+    thinkingHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6, paddingVertical: 4 },
+    thinkingLabel: { color: C.primary, fontSize: 12, fontFamily: "Inter_500Medium", flex: 1 },
     thinkingBody: {
       backgroundColor: C.surface2,
       borderRadius: 8,
@@ -354,40 +278,35 @@ function createStyles(C: ReturnType<typeof useColors>) {
       padding: 10,
       marginBottom: 8,
     },
-    thinkingText: {
-      color: C.textTertiary,
-      fontSize: 12,
-      fontFamily: "Inter_400Regular",
-      lineHeight: 18,
-      fontStyle: "italic",
-    },
-    citationsContainer: {
-      marginTop: 10,
-      gap: 4,
-    },
-    citationsLabel: {
-      color: C.textTertiary,
-      fontSize: 11,
-      fontFamily: "Inter_600SemiBold",
-      letterSpacing: 0.5,
-      marginBottom: 4,
-    },
+    thinkingText: { color: C.textTertiary, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18, fontStyle: "italic" },
+    citationsContainer: { marginTop: 10, gap: 5 },
+    citationsHeader: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 2 },
+    citationsLabel: { color: C.textTertiary, fontSize: 11, fontFamily: "Inter_600SemiBold", letterSpacing: 0.5 },
     citationChip: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 4,
+      gap: 6,
       backgroundColor: C.surface2,
-      borderRadius: 6,
+      borderRadius: 8,
       paddingHorizontal: 8,
-      paddingVertical: 4,
+      paddingVertical: 6,
       borderWidth: 1,
       borderColor: C.border,
     },
-    citationText: {
-      color: C.primary,
-      fontSize: 11,
-      fontFamily: "Inter_400Regular",
-      flex: 1,
+    credBadge: {
+      borderRadius: 4,
+      paddingHorizontal: 5,
+      paddingVertical: 2,
+      alignItems: "center",
+      justifyContent: "center",
     },
+    credScore: { fontSize: 10, fontFamily: "Inter_700Bold" },
+    citationText: { color: C.primary, fontSize: 11, fontFamily: "Inter_400Regular", flex: 1 },
+    credLabel: {
+      borderRadius: 4,
+      paddingHorizontal: 5,
+      paddingVertical: 2,
+    },
+    credLabelText: { fontSize: 10, fontFamily: "Inter_500Medium" },
   });
 }

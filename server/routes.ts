@@ -28,6 +28,16 @@ const OPENROUTER_MODELS = new Set([
 ]);
 
 const SEARCH_MODEL = "compound-beta";
+const CODE_MODEL = "deepseek/deepseek-chat";
+
+const CODE_SYSTEM_PROMPT = `You are an expert code generation assistant. When writing code:
+- Always specify the programming language in code blocks
+- Write clean, readable, well-commented code
+- Explain key implementation decisions briefly after the code
+- Point out potential edge cases or limitations
+- If the request is ambiguous, ask one clarifying question before proceeding
+- Prefer idiomatic patterns for each language
+- Include error handling where appropriate`;
 
 const RESEARCH_SYSTEM_PROMPT = `You are a deep research assistant. When given a topic or question, provide a comprehensive, structured report with the following sections:
 
@@ -109,9 +119,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const allMessages: { role: "system" | "user" | "assistant"; content: string }[] = [];
 
+      let selectedModel = model || getDefaultModel();
+      if (mode === "search" || mode === "research") {
+        selectedModel = SEARCH_MODEL;
+      } else if (mode === "code") {
+        selectedModel = CODE_MODEL;
+      }
+
       let effectivePrompt = systemPrompt || "";
       if (mode === "research") {
         effectivePrompt = RESEARCH_SYSTEM_PROMPT + (effectivePrompt ? "\n\n" + effectivePrompt : "");
+      } else if (mode === "code") {
+        effectivePrompt = CODE_SYSTEM_PROMPT + (effectivePrompt ? "\n\n" + effectivePrompt : "");
       }
       if (language && language !== "English") {
         effectivePrompt = effectivePrompt
@@ -122,11 +141,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         allMessages.push({ role: "system", content: effectivePrompt });
       }
       allMessages.push(...messages);
-
-      let selectedModel = model || getDefaultModel();
-      if (mode === "search" || mode === "research") {
-        selectedModel = SEARCH_MODEL;
-      }
 
       const client = getClientForModel(selectedModel);
 

@@ -7,17 +7,19 @@ A **ChatGPT-style AI chat app** built with React Native (Expo) frontend and Node
 Key features:
 - Real-time streaming AI responses via Server-Sent Events (SSE)
 - Multi-model access: DeepSeek V3, Qwen 2.5, Mistral 24B/7B, Claude 3.5 Sonnet, Gemini Pro (via OpenRouter) + GPT-4o (OpenAI) + Compound Beta/Mini (Groq)
-- Companions — AI personas with custom system prompts
+- Companions — AI personas with custom system prompts, default models, tool sets, and companion-specific memory
 - Incognito Mode — conversations not saved
 - PII Redaction — auto-strips personal info before sending
 - Prompt Library — 50+ categorized prompts accessible from chat
-- Web Search Tool — Groq Compound Beta with inline citations
-- Deep Research Tool — structured multi-section reports with sources
-- Spaces — contextual workspaces with persistent context + instructions
-- Intelligent Memory System — save facts, auto-inject into prompts
-- User Personalization — tone/verbosity/expertise level settings
+- Web Search Tool — Groq Compound Beta with inline citations + credibility scores
+- Deep Research Tool — structured multi-section reports with sources + credibility scores
+- Code Generation Mode — dedicated code mode (DeepSeek model, green badge, copy buttons)
+- Spaces — contextual workspaces with thread scoping and space-specific thread lists in sidebar
+- Intelligent Memory System — global memory + companion-specific memory per companion
+- User Personalization — tone/verbosity/expertise + AI-inferred learned preferences (bullets, examples, concise, domains)
 - Cross-Context Chat Carryover — summary generation on new chat
 - Thinking Process Display — collapsible reasoning for reasoning models
+- Source Credibility Scores — colored credibility badges on citations (High/Good/Mixed/Unknown)
 - Multiple conversation management with rename/delete
 - Local persistence using AsyncStorage
 - Dark-themed UI with markdown rendering
