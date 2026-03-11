@@ -33,6 +33,16 @@ const AVAILABLE_MODELS = [
   { id: "llama-3.3-70b-versatile", label: "LLaMA 70B" },
 ];
 
+const MODEL_SHORT: Record<string, string> = {
+  "gpt-4o": "GPT-4o",
+  "anthropic/claude-3.5-sonnet": "Claude",
+  "deepseek/deepseek-chat": "DeepSeek",
+  "qwen/qwen-2.5-72b-instruct": "Qwen 2.5",
+  "mistralai/mistral-small-3.1-24b-instruct": "Mistral",
+  "google/gemini-pro-1.5": "Gemini",
+  "llama-3.3-70b-versatile": "LLaMA",
+};
+
 const AVAILABLE_TOOLS = [
   { id: "search", label: "Web Search", icon: "globe", color: "#3B82F6" },
   { id: "research", label: "Deep Research", icon: "layers", color: "#8B5CF6" },
@@ -271,6 +281,7 @@ function CompanionCard({
   companion: Companion; isActive: boolean; onPress: () => void;
   onDelete?: () => void; styles: ReturnType<typeof createStyles>; C: ReturnType<typeof useColors>;
 }) {
+  const modelLabel = companion.defaultModel ? MODEL_SHORT[companion.defaultModel] ?? null : null;
   return (
     <Pressable style={[styles.card, isActive && styles.cardActive]} onPress={onPress}>
       <View style={[styles.cardIcon, { backgroundColor: companion.color + "22" }]}>
@@ -278,18 +289,25 @@ function CompanionCard({
       </View>
       <Text style={styles.cardName} numberOfLines={1}>{companion.name}</Text>
       <Text style={styles.cardDesc} numberOfLines={2}>{companion.description}</Text>
-      {companion.tools && companion.tools.length > 0 && (
-        <View style={styles.cardTools}>
-          {companion.tools.slice(0, 3).map((t) => (
-            <View key={t} style={[styles.cardToolDot, { backgroundColor: companion.color + "33" }]}>
-              <Feather
-                name={t === "search" ? "globe" : t === "research" ? "layers" : t === "code" ? "terminal" : "bookmark"}
-                size={9} color={companion.color}
-              />
-            </View>
-          ))}
-        </View>
-      )}
+      <View style={styles.cardFooter}>
+        {companion.tools && companion.tools.length > 0 && (
+          <View style={styles.cardTools}>
+            {companion.tools.slice(0, 3).map((t) => (
+              <View key={t} style={[styles.cardToolDot, { backgroundColor: companion.color + "33" }]}>
+                <Feather
+                  name={t === "search" ? "globe" : t === "research" ? "layers" : t === "code" ? "terminal" : "bookmark"}
+                  size={9} color={companion.color}
+                />
+              </View>
+            ))}
+          </View>
+        )}
+        {modelLabel && (
+          <View style={[styles.modelBadge, { backgroundColor: companion.color + "18" }]}>
+            <Text style={[styles.modelBadgeText, { color: companion.color }]}>{modelLabel}</Text>
+          </View>
+        )}
+      </View>
       {isActive && (
         <View style={styles.activeIndicator}>
           <Feather name="check" size={11} color="#fff" />
@@ -334,8 +352,11 @@ function createStyles(C: ReturnType<typeof useColors>) {
     cardIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", marginBottom: 2 },
     cardName: { color: C.text, fontSize: 14, fontFamily: "Inter_600SemiBold" },
     cardDesc: { color: C.textSecondary, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 16 },
-    cardTools: { flexDirection: "row", gap: 4, marginTop: 2 },
+    cardFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
+    cardTools: { flexDirection: "row", gap: 4 },
     cardToolDot: { width: 18, height: 18, borderRadius: 9, alignItems: "center", justifyContent: "center" },
+    modelBadge: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+    modelBadgeText: { fontSize: 10, fontFamily: "Inter_500Medium" },
     activeIndicator: {
       position: "absolute", top: 10, right: 10, width: 20, height: 20,
       borderRadius: 10, backgroundColor: C.primary, alignItems: "center", justifyContent: "center",
