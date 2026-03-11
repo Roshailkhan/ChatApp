@@ -101,6 +101,7 @@ export function PromptLibrarySheet({ visible, onClose, onSelect }: Props) {
             </Pressable>
           )}
         />
+        <View style={styles.divider} />
 
         <FlatList
           data={filtered}
@@ -185,23 +186,25 @@ function createStyles(C: ReturnType<typeof useColors>) {
       ...(Platform.OS === "web" ? { outlineWidth: 0, outlineStyle: "none" } as any : {}),
     },
     categoryList: {
+      flexGrow: 0,
       flexShrink: 0,
-      marginTop: 10,
-      marginBottom: 2,
+      height: 48,
+      marginTop: 8,
     },
     categoryContent: {
       paddingHorizontal: 16,
-      paddingVertical: 6,
       gap: 8,
       alignItems: "center",
     },
     categoryChip: {
+      height: 36,
       paddingHorizontal: 16,
-      paddingVertical: 8,
-      borderRadius: 20,
+      borderRadius: 18,
       backgroundColor: C.surface2,
       borderWidth: 1,
       borderColor: C.border,
+      alignItems: "center",
+      justifyContent: "center",
     },
     categoryChipActive: {
       backgroundColor: C.primary,
@@ -214,6 +217,11 @@ function createStyles(C: ReturnType<typeof useColors>) {
     },
     categoryTextActive: {
       color: "#fff",
+    },
+    divider: {
+      height: 1,
+      backgroundColor: C.border,
+      marginTop: 6,
     },
     promptList: {
       flex: 1,
