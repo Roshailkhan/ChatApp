@@ -14,6 +14,13 @@ export interface LearnedStyle {
   updatedAt: number;
 }
 
+export interface DefaultModels {
+  chat: string;
+  code: string;
+  research: string;
+  writing: string;
+}
+
 export interface AppSettings {
   theme: ThemeMode;
   language: string;
@@ -22,6 +29,7 @@ export interface AppSettings {
   verbosity: VerbosityMode;
   expertiseLevel: ExpertiseLevel;
   learnedStyle: LearnedStyle;
+  defaultModels: DefaultModels;
 }
 
 const defaultLearnedStyle: LearnedStyle = {
@@ -32,6 +40,13 @@ const defaultLearnedStyle: LearnedStyle = {
   updatedAt: 0,
 };
 
+const defaultDefaultModels: DefaultModels = {
+  chat: "llama-3.3-70b-versatile",
+  code: "deepseek/deepseek-chat",
+  research: "compound-beta",
+  writing: "anthropic/claude-3.5-sonnet",
+};
+
 const defaultAppSettings: AppSettings = {
   theme: "dark",
   language: "English",
@@ -40,6 +55,7 @@ const defaultAppSettings: AppSettings = {
   verbosity: "balanced",
   expertiseLevel: "intermediate",
   learnedStyle: defaultLearnedStyle,
+  defaultModels: defaultDefaultModels,
 };
 
 const APP_SETTINGS_KEY = "app_settings";
@@ -49,6 +65,7 @@ interface SettingsContextType {
   updateAppSettings: (s: Partial<AppSettings>) => Promise<void>;
   updateLearnedStyle: (updates: Partial<LearnedStyle>) => Promise<void>;
   resetLearnedStyle: () => Promise<void>;
+  updateDefaultModels: (updates: Partial<DefaultModels>) => Promise<void>;
 }
 
 const SettingsContext = createContext<SettingsContextType | null>(null);
@@ -64,6 +81,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           ...defaultAppSettings,
           ...parsed,
           learnedStyle: { ...defaultLearnedStyle, ...(parsed.learnedStyle || {}) },
+          defaultModels: { ...defaultDefaultModels, ...(parsed.defaultModels || {}) },
         });
       }
     });
@@ -88,8 +106,17 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     await updateLearnedStyle({ ...defaultLearnedStyle, updatedAt: 0 });
   }
 
+  async function updateDefaultModels(updates: Partial<DefaultModels>) {
+    const updated = {
+      ...appSettings,
+      defaultModels: { ...appSettings.defaultModels, ...updates },
+    };
+    setAppSettings(updated);
+    await AsyncStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(updated));
+  }
+
   return (
-    <SettingsContext.Provider value={{ appSettings, updateAppSettings, updateLearnedStyle, resetLearnedStyle }}>
+    <SettingsContext.Provider value={{ appSettings, updateAppSettings, updateLearnedStyle, resetLearnedStyle, updateDefaultModels }}>
       {children}
     </SettingsContext.Provider>
   );

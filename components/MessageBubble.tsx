@@ -7,6 +7,8 @@ import {
   Pressable,
   Alert,
   Clipboard,
+  Modal,
+  ScrollView,
 } from "react-native";
 import Markdown from "react-native-markdown-display";
 import { useColors } from "@/lib/useColors";
@@ -15,6 +17,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useMemory } from "@/contexts/MemoryContext";
 import { scoreSource } from "@/lib/credibility";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface Props {
   message: Message;
@@ -74,11 +77,119 @@ function CitationChip({ url, index }: { url: string; index: number }) {
   );
 }
 
+function ResearchDocumentModal({
+  visible,
+  onClose,
+  content,
+  citations,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  content: string;
+  citations?: string[];
+}) {
+  const C = useColors();
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(C), [C]);
+  const [copied, setCopied] = useState(false);
+
+  const markdownStyles = useMemo(
+    () => ({
+      body: { color: C.text, fontSize: 15, lineHeight: 24, fontFamily: "Inter_400Regular" },
+      heading1: { color: C.text, fontFamily: "Inter_700Bold", fontSize: 22, marginTop: 16, marginBottom: 8 },
+      heading2: { color: C.text, fontFamily: "Inter_600SemiBold", fontSize: 18, marginTop: 14, marginBottom: 6 },
+      heading3: { color: C.text, fontFamily: "Inter_600SemiBold", fontSize: 16, marginTop: 10, marginBottom: 4 },
+      paragraph: { marginTop: 0, marginBottom: 8, color: C.text, fontSize: 15, lineHeight: 24 },
+      list_item: { color: C.text, fontSize: 15, lineHeight: 24 },
+      code_inline: {
+        backgroundColor: C.surface3,
+        color: C.primaryLight,
+        fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }),
+        fontSize: 13,
+        paddingHorizontal: 4,
+        paddingVertical: 1,
+        borderRadius: 4,
+      },
+      blockquote: {
+        backgroundColor: C.surface2,
+        borderLeftColor: C.primary,
+        borderLeftWidth: 3,
+        paddingLeft: 12,
+        paddingVertical: 4,
+        borderRadius: 2,
+      },
+      hr: { backgroundColor: C.border, height: 1, marginVertical: 16 },
+      strong: { fontFamily: "Inter_600SemiBold", color: C.text },
+      em: { color: C.text, fontStyle: "italic" as const },
+      link: { color: C.primary },
+    }),
+    [C]
+  );
+
+  const topPad = Platform.OS === "web" ? 67 : insets.top;
+
+  const handleCopy = async () => {
+    Clipboard.setString(content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={[styles.docContainer, { paddingTop: topPad }]}>
+        <View style={styles.docHeader}>
+          <View style={styles.docHeaderLeft}>
+            <View style={styles.docIconBox}>
+              <Feather name="file-text" size={16} color="#8B5CF6" />
+            </View>
+            <View>
+              <Text style={styles.docTitle}>Research Report</Text>
+              <Text style={styles.docSubtitle}>Deep Analysis</Text>
+            </View>
+          </View>
+          <View style={styles.docHeaderActions}>
+            <Pressable style={styles.docActionBtn} onPress={handleCopy} hitSlop={8}>
+              <Feather name={copied ? "check" : "copy"} size={16} color={copied ? "#10B981" : C.textSecondary} />
+            </Pressable>
+            <Pressable style={styles.docCloseBtn} onPress={onClose}>
+              <Feather name="x" size={18} color={C.text} />
+            </Pressable>
+          </View>
+        </View>
+
+        <ScrollView
+          style={styles.docScroll}
+          contentContainerStyle={[styles.docContent, { paddingBottom: insets.bottom + 40 }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <Markdown style={markdownStyles}>{content}</Markdown>
+
+          {citations && citations.length > 0 && (
+            <View style={styles.docSourcesSection}>
+              <View style={styles.docSourcesHeader}>
+                <Feather name="globe" size={14} color={C.textTertiary} />
+                <Text style={styles.docSourcesTitle}>Sources</Text>
+                <View style={[styles.docSourcesBadge, { backgroundColor: "#8B5CF6" + "22" }]}>
+                  <Text style={[styles.docSourcesBadgeText, { color: "#8B5CF6" }]}>{citations.length}</Text>
+                </View>
+              </View>
+              {citations.map((url, i) => (
+                <CitationChip key={i} url={url} index={i} />
+              ))}
+            </View>
+          )}
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
 function MessageBubbleInner({ message }: Props) {
   const C = useColors();
   const styles = useMemo(() => createStyles(C), [C]);
   const { addMemory } = useMemory();
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
+  const [showDocument, setShowDocument] = useState(false);
 
   const markdownStyles = useMemo(
     () => ({
@@ -156,6 +267,7 @@ function MessageBubbleInner({ message }: Props) {
 
   const thinkingContent = (message as any).thinkingContent as string | undefined;
   const citations = (message as any).citations as string[] | undefined;
+  const isResearch = message.mode === "research" && message.role === "assistant" && message.status === "complete";
 
   if (isUser) {
     return (
@@ -168,47 +280,64 @@ function MessageBubbleInner({ message }: Props) {
   }
 
   return (
-    <Pressable onLongPress={handleLongPress} delayLongPress={500}>
-      <View style={styles.assistantContainer}>
-        <View style={styles.assistantIcon}>
-          <Feather name="zap" size={13} color={C.primary} />
-        </View>
-        <View style={styles.assistantContent}>
-          {!!thinkingContent && (
-            <Pressable style={styles.thinkingHeader} onPress={() => setThinkingExpanded((v) => !v)}>
-              <Feather name="cpu" size={12} color={C.primary} />
-              <Text style={styles.thinkingLabel}>Thinking</Text>
-              <Feather name={thinkingExpanded ? "chevron-up" : "chevron-down"} size={12} color={C.textTertiary} />
-            </Pressable>
-          )}
-          {!!thinkingContent && thinkingExpanded && (
-            <View style={styles.thinkingBody}>
-              <Text style={styles.thinkingText}>{thinkingContent}</Text>
-            </View>
-          )}
-          <Markdown style={markdownStyles} rules={rules}>
-            {message.content || " "}
-          </Markdown>
-          {citations && citations.length > 0 && (
-            <View style={styles.citationsContainer}>
-              <View style={styles.citationsHeader}>
-                <Feather name="globe" size={11} color={C.textTertiary} />
-                <Text style={styles.citationsLabel}>Sources</Text>
+    <>
+      <Pressable onLongPress={handleLongPress} delayLongPress={500}>
+        <View style={styles.assistantContainer}>
+          <View style={styles.assistantIcon}>
+            <Feather name="zap" size={13} color={C.primary} />
+          </View>
+          <View style={styles.assistantContent}>
+            {!!thinkingContent && (
+              <Pressable style={styles.thinkingHeader} onPress={() => setThinkingExpanded((v) => !v)}>
+                <Feather name="cpu" size={12} color={C.primary} />
+                <Text style={styles.thinkingLabel}>Thinking</Text>
+                <Feather name={thinkingExpanded ? "chevron-up" : "chevron-down"} size={12} color={C.textTertiary} />
+              </Pressable>
+            )}
+            {!!thinkingContent && thinkingExpanded && (
+              <View style={styles.thinkingBody}>
+                <Text style={styles.thinkingText}>{thinkingContent}</Text>
               </View>
-              {citations.map((url: string, i: number) => (
-                <CitationChip key={i} url={url} index={i} />
-              ))}
-            </View>
-          )}
-          {message.status === "error" && (
-            <Text style={styles.errorText}>Failed to get response</Text>
-          )}
-          {message.status === "cancelled" && (
-            <Text style={styles.cancelledText}>Cancelled</Text>
-          )}
+            )}
+            <Markdown style={markdownStyles} rules={rules}>
+              {message.content || " "}
+            </Markdown>
+            {citations && citations.length > 0 && (
+              <View style={styles.citationsContainer}>
+                <View style={styles.citationsHeader}>
+                  <Feather name="globe" size={11} color={C.textTertiary} />
+                  <Text style={styles.citationsLabel}>Sources</Text>
+                </View>
+                {citations.map((url: string, i: number) => (
+                  <CitationChip key={i} url={url} index={i} />
+                ))}
+              </View>
+            )}
+            {isResearch && (
+              <Pressable style={styles.viewDocBtn} onPress={() => setShowDocument(true)}>
+                <Feather name="file-text" size={13} color="#8B5CF6" />
+                <Text style={styles.viewDocText}>View as Document</Text>
+                <Feather name="arrow-right" size={12} color="#8B5CF6" />
+              </Pressable>
+            )}
+            {message.status === "error" && (
+              <Text style={styles.errorText}>Failed to get response</Text>
+            )}
+            {message.status === "cancelled" && (
+              <Text style={styles.cancelledText}>Cancelled</Text>
+            )}
+          </View>
         </View>
-      </View>
-    </Pressable>
+      </Pressable>
+      {isResearch && (
+        <ResearchDocumentModal
+          visible={showDocument}
+          onClose={() => setShowDocument(false)}
+          content={message.content}
+          citations={citations}
+        />
+      )}
+    </>
   );
 }
 
@@ -308,5 +437,79 @@ function createStyles(C: ReturnType<typeof useColors>) {
       paddingVertical: 2,
     },
     credLabelText: { fontSize: 10, fontFamily: "Inter_500Medium" },
+    viewDocBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginTop: 10,
+      backgroundColor: "#8B5CF6" + "18",
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderWidth: 1,
+      borderColor: "#8B5CF6" + "33",
+      alignSelf: "flex-start",
+    },
+    viewDocText: { color: "#8B5CF6", fontSize: 12, fontFamily: "Inter_500Medium" },
+    docContainer: { flex: 1, backgroundColor: C.background },
+    docHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: C.border,
+    },
+    docHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
+    docIconBox: {
+      width: 38,
+      height: 38,
+      borderRadius: 10,
+      backgroundColor: "#8B5CF6" + "22",
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: "#8B5CF6" + "33",
+    },
+    docTitle: { color: C.text, fontSize: 16, fontFamily: "Inter_600SemiBold" },
+    docSubtitle: { color: C.textTertiary, fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
+    docHeaderActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+    docActionBtn: {
+      width: 36, height: 36, borderRadius: 18,
+      backgroundColor: C.surface2, alignItems: "center", justifyContent: "center",
+    },
+    docCloseBtn: {
+      width: 36, height: 36, borderRadius: 18,
+      backgroundColor: C.surface2, alignItems: "center", justifyContent: "center",
+    },
+    docScroll: { flex: 1 },
+    docContent: { paddingHorizontal: 24, paddingTop: 24 },
+    docSourcesSection: {
+      marginTop: 32,
+      paddingTop: 20,
+      borderTopWidth: 1,
+      borderTopColor: C.border,
+      gap: 8,
+    },
+    docSourcesHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginBottom: 8,
+    },
+    docSourcesTitle: {
+      color: C.textTertiary,
+      fontSize: 12,
+      fontFamily: "Inter_600SemiBold",
+      letterSpacing: 0.8,
+      flex: 1,
+    },
+    docSourcesBadge: {
+      borderRadius: 10,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+    },
+    docSourcesBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   });
 }

@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+export type CompanionTone = "formal" | "casual" | "friendly";
+export type CompanionVerbosity = "concise" | "balanced" | "detailed";
+
 export interface Companion {
   id: string;
   name: string;
@@ -11,6 +14,8 @@ export interface Companion {
   isCustom?: boolean;
   tools?: string[];
   defaultModel?: string;
+  tone?: CompanionTone;
+  verbosity?: CompanionVerbosity;
 }
 
 export const BUILT_IN_COMPANIONS: Companion[] = [
@@ -21,6 +26,8 @@ export const BUILT_IN_COMPANIONS: Companion[] = [
     icon: "bar-chart-2",
     color: "#6366F1",
     defaultModel: "gpt-4o",
+    tone: "formal",
+    verbosity: "detailed",
     systemPrompt: `You are a Data Analyst AI. Help users analyze data, identify patterns, interpret statistics, and explain analytical findings clearly.
 
 Always:
@@ -40,6 +47,8 @@ Never fabricate data, invent statistics, or claim certainty about ambiguous patt
     icon: "edit-3",
     color: "#F59E0B",
     defaultModel: "anthropic/claude-3.5-sonnet",
+    tone: "friendly",
+    verbosity: "balanced",
     systemPrompt: `You are a professional Writing Assistant. Help users create, edit, refine, and improve any written content — from emails to essays, scripts to social posts.
 
 Always:
@@ -57,6 +66,8 @@ Always:
     icon: "search",
     color: "#10B981",
     defaultModel: "gpt-4o",
+    tone: "formal",
+    verbosity: "detailed",
     tools: ["research", "search"],
     systemPrompt: `You are a Research Assistant AI with access to web search and deep research tools. You specialize in gathering, verifying, and synthesizing information from multiple sources.
 
@@ -77,6 +88,8 @@ Never present unverified claims as facts, or skip citing sources for factual ass
     icon: "file-text",
     color: "#F97316",
     defaultModel: "mistralai/mistral-small-3.1-24b-instruct",
+    tone: "casual",
+    verbosity: "concise",
     tools: ["memory"],
     systemPrompt: `You are a Document Summarizer AI. Condense and extract key information from any document, article, report, or block of text.
 
@@ -95,6 +108,8 @@ Always:
     icon: "heart",
     color: "#EF4444",
     defaultModel: "anthropic/claude-3.5-sonnet",
+    tone: "friendly",
+    verbosity: "balanced",
     systemPrompt: `You are a Healthcare Information Guide. Provide general health education, explain medical concepts, and offer wellness guidance.
 
 IMPORTANT — Always include this disclaimer when discussing health topics: "This information is for educational purposes only and is not medical advice. Please consult a qualified healthcare professional for diagnosis, treatment, or any personal medical decisions."
@@ -114,6 +129,8 @@ Never diagnose conditions, recommend specific medications or dosages, or contrad
     icon: "trending-up",
     color: "#059669",
     defaultModel: "gpt-4o",
+    tone: "formal",
+    verbosity: "balanced",
     systemPrompt: `You are a Financial Education Guide. Explain financial concepts, investment principles, budgeting strategies, and economic topics in clear and practical terms.
 
 IMPORTANT — Always clarify: "This is educational financial information only, not personalized financial advice. For decisions affecting your finances, please consult a licensed financial advisor."

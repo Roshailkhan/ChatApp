@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  TextInput,
   Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -91,12 +92,45 @@ const MODEL_GROUPS: ProviderGroup[] = [
   },
 ];
 
+const ALL_MODELS: (ModelEntry & { color: string; provider: string })[] = MODEL_GROUPS.flatMap((g) =>
+  g.models.map((m) => ({ ...m, color: g.color, provider: g.label }))
+);
+
+const FEATURED_MODEL_IDS = ["deepseek/deepseek-chat", "gpt-4o", "anthropic/claude-3.5-sonnet", "llama-3.3-70b-versatile"];
+
+const TASK_MODES: { key: "chat" | "code" | "research" | "writing"; label: string; icon: string; color: string }[] = [
+  { key: "chat", label: "Chat", icon: "message-circle", color: "#8B5CF6" },
+  { key: "code", label: "Code", icon: "terminal", color: "#10B981" },
+  { key: "research", label: "Research", icon: "layers", color: "#3B82F6" },
+  { key: "writing", label: "Writing", icon: "edit-3", color: "#F59E0B" },
+];
+
+const MODEL_DISPLAY_NAMES: Record<string, string> = {
+  "deepseek/deepseek-chat": "DeepSeek V3",
+  "qwen/qwen-2.5-72b-instruct": "Qwen 2.5",
+  "mistralai/mistral-small-3.1-24b-instruct": "Mistral 24B",
+  "mistralai/mistral-7b-instruct": "Mistral 7B",
+  "anthropic/claude-3.5-sonnet": "Claude 3.5",
+  "google/gemini-pro-1.5": "Gemini Pro",
+  "gpt-4o": "GPT-4o",
+  "gpt-4o-mini": "GPT-4o Mini",
+  "gpt-4.1": "GPT-4.1",
+  "o3-mini": "o3 Mini",
+  "llama-3.3-70b-versatile": "Llama 3.3 70B",
+  "llama-3.1-8b-instant": "Llama 3.1 8B",
+  "meta-llama/llama-4-scout-17b-16e-instruct": "Llama 4 Scout",
+  "compound-beta": "Compound Beta",
+  "compound-beta-mini": "Compound Mini",
+};
+
 export function SettingsSheet({ visible, onClose }: Props) {
   const C = useColors();
   const insets = useSafeAreaInsets();
-  const { appSettings, updateAppSettings, resetLearnedStyle } = useSettingsContext();
+  const { appSettings, updateAppSettings, resetLearnedStyle, updateDefaultModels } = useSettingsContext();
   const { settings, updateSettings } = useChatContext();
   const { memories, deleteMemory, clearAllMemories } = useMemory();
+  const [modelSearch, setModelSearch] = useState("");
+  const [defaultModelPicker, setDefaultModelPicker] = useState<null | "chat" | "code" | "research" | "writing">(null);
 
   const t = useTranslations();
   const styles = useMemo(() => createStyles(C), [C]);
@@ -108,6 +142,75 @@ export function SettingsSheet({ visible, onClose }: Props) {
   };
 
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
+
+  const filteredGroups = useMemo(() => {
+    if (!modelSearch.trim()) return MODEL_GROUPS;
+    const q = modelSearch.toLowerCase();
+    return MODEL_GROUPS.map((g) => ({
+      ...g,
+      models: g.models.filter(
+        (m) => m.name.toLowerCase().includes(q) || m.desc.toLowerCase().includes(q) || g.label.toLowerCase().includes(q)
+      ),
+    })).filter((g) => g.models.length > 0);
+  }, [modelSearch]);
+
+  const featuredModels = useMemo(
+    () => ALL_MODELS.filter((m) => FEATURED_MODEL_IDS.includes(m.id)),
+    []
+  );
+
+  if (defaultModelPicker) {
+    const taskInfo = TASK_MODES.find((t) => t.key === defaultModelPicker)!;
+    const currentDefault = appSettings.defaultModels[defaultModelPicker];
+    return (
+      <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setDefaultModelPicker(null)}>
+        <View style={[styles.container, { paddingTop: topPadding }]}>
+          <View style={styles.header}>
+            <Pressable style={styles.closeBtn} onPress={() => setDefaultModelPicker(null)}>
+              <Feather name="arrow-left" size={20} color={C.text} />
+            </Pressable>
+            <Text style={styles.headerTitle}>Default for {taskInfo.label}</Text>
+            <View style={{ width: 36 }} />
+          </View>
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            {MODEL_GROUPS.map((group) => (
+              <View key={group.provider} style={styles.providerBlock}>
+                <View style={styles.providerHeader}>
+                  <View style={[styles.providerDot, { backgroundColor: group.color }]} />
+                  <Text style={styles.providerLabel}>{group.label}</Text>
+                </View>
+                <View style={styles.card}>
+                  {group.models.map((m, i) => {
+                    const isSelected = currentDefault === m.id;
+                    return (
+                      <Pressable
+                        key={m.id}
+                        style={[styles.optionRow, i < group.models.length - 1 && styles.optionRowBorder, isSelected && styles.optionRowSelected]}
+                        onPress={() => {
+                          updateDefaultModels({ [defaultModelPicker]: m.id });
+                          setDefaultModelPicker(null);
+                        }}
+                      >
+                        <View style={styles.optionLeft}>
+                          <View style={[styles.modelDot, { backgroundColor: group.color }]} />
+                          <View>
+                            <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>{m.name}</Text>
+                            <Text style={styles.optionDesc}>{m.desc}</Text>
+                          </View>
+                        </View>
+                        {isSelected && <Feather name="check" size={16} color={C.primary} />}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ))}
+            <View style={{ height: insets.bottom + 24 }} />
+          </ScrollView>
+        </View>
+      </Modal>
+    );
+  }
 
   return (
     <Modal
@@ -159,7 +262,60 @@ export function SettingsSheet({ visible, onClose }: Props) {
 
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>{t.aiModel}</Text>
-            {MODEL_GROUPS.map((group) => (
+
+            <View style={styles.searchBox}>
+              <Feather name="search" size={14} color={C.textTertiary} />
+              <TextInput
+                style={styles.searchInput}
+                value={modelSearch}
+                onChangeText={setModelSearch}
+                placeholder="Search models..."
+                placeholderTextColor={C.textTertiary}
+                selectionColor={C.primary}
+                clearButtonMode="while-editing"
+              />
+              {modelSearch.length > 0 && (
+                <Pressable onPress={() => setModelSearch("")} hitSlop={8}>
+                  <Feather name="x" size={14} color={C.textTertiary} />
+                </Pressable>
+              )}
+            </View>
+
+            {!modelSearch.trim() && (
+              <View style={styles.providerBlock}>
+                <View style={styles.providerHeader}>
+                  <Feather name="star" size={12} color="#F59E0B" />
+                  <Text style={[styles.providerLabel, { color: "#F59E0B" }]}>Featured</Text>
+                </View>
+                <View style={styles.card}>
+                  {featuredModels.map((m, i) => {
+                    const isSelected = settings.model === m.id;
+                    return (
+                      <Pressable
+                        key={m.id}
+                        style={[
+                          styles.optionRow,
+                          i < featuredModels.length - 1 && styles.optionRowBorder,
+                          isSelected && styles.optionRowSelected,
+                        ]}
+                        onPress={() => updateSettings({ model: m.id })}
+                      >
+                        <View style={styles.optionLeft}>
+                          <View style={[styles.modelDot, { backgroundColor: m.color }]} />
+                          <View>
+                            <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>{m.name}</Text>
+                            <Text style={styles.optionDesc}>{m.desc}</Text>
+                          </View>
+                        </View>
+                        {isSelected && <Feather name="check" size={16} color={C.primary} />}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+
+            {filteredGroups.map((group) => (
               <View key={group.provider} style={styles.providerBlock}>
                 <View style={styles.providerHeader}>
                   <View style={[styles.providerDot, { backgroundColor: group.color }]} />
@@ -196,6 +352,35 @@ export function SettingsSheet({ visible, onClose }: Props) {
                 </View>
               </View>
             ))}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>DEFAULT MODELS PER TASK</Text>
+            <Text style={styles.sectionHint}>Auto-select model when switching chat mode</Text>
+            <View style={styles.card}>
+              {TASK_MODES.map((task, i) => {
+                const currentModel = appSettings.defaultModels[task.key];
+                const modelName = MODEL_DISPLAY_NAMES[currentModel] ?? currentModel;
+                return (
+                  <Pressable
+                    key={task.key}
+                    style={[styles.optionRow, i < TASK_MODES.length - 1 && styles.optionRowBorder]}
+                    onPress={() => setDefaultModelPicker(task.key)}
+                  >
+                    <View style={styles.optionLeft}>
+                      <View style={[styles.taskIconBox, { backgroundColor: task.color + "22" }]}>
+                        <Feather name={task.icon as any} size={14} color={task.color} />
+                      </View>
+                      <Text style={styles.optionText}>{task.label}</Text>
+                    </View>
+                    <View style={styles.defaultModelRight}>
+                      <Text style={styles.defaultModelName}>{modelName}</Text>
+                      <Feather name="chevron-right" size={14} color={C.textTertiary} />
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
 
           <View style={styles.section}>
@@ -476,6 +661,42 @@ function createStyles(C: ReturnType<typeof useColors>) {
       height: 6,
       borderRadius: 3,
       marginTop: 1,
+    },
+    searchBox: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      backgroundColor: C.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: C.border,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      marginBottom: 12,
+    },
+    searchInput: {
+      flex: 1,
+      color: C.text,
+      fontSize: 14,
+      fontFamily: "Inter_400Regular",
+      ...(Platform.OS === "web" ? { outlineWidth: 0, outlineStyle: "none" } as any : {}),
+    },
+    taskIconBox: {
+      width: 28,
+      height: 28,
+      borderRadius: 8,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    defaultModelRight: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+    },
+    defaultModelName: {
+      color: C.textSecondary,
+      fontSize: 13,
+      fontFamily: "Inter_400Regular",
     },
     toggle: {
       width: 44,

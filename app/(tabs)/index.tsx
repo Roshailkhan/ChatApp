@@ -90,6 +90,7 @@ export default function ChatScreen() {
     generateTitle,
   } = useChatContext();
   const { appSettings, updateLearnedStyle } = useSettingsContext();
+  const effectiveDefaultModels = appSettings.defaultModels || { chat: "llama-3.3-70b-versatile", code: "deepseek/deepseek-chat", research: "compound-beta", writing: "anthropic/claude-3.5-sonnet" };
   const { getActiveCompanion, activeCompanionId } = useCompanions();
   const { buildMemoryPrompt, buildCompanionMemoryPrompt } = useMemory();
   const { getActiveSpace } = useSpaces();
@@ -184,9 +185,11 @@ export default function ChatScreen() {
 
     let systemParts: string[] = [];
 
+    const effectiveTone = activeCompanion?.tone ?? appSettings.tone ?? "casual";
+    const effectiveVerbosity = activeCompanion?.verbosity ?? appSettings.verbosity ?? "balanced";
     const personalizationPrompt = buildPersonalizationPrompt(
-      appSettings.tone || "casual",
-      appSettings.verbosity || "balanced",
+      effectiveTone,
+      effectiveVerbosity,
       appSettings.expertiseLevel || "intermediate",
       appSettings.learnedStyle
     );
@@ -221,7 +224,8 @@ export default function ChatScreen() {
     let finalCitations: string[] = [];
 
     try {
-      const effectiveModel = activeCompanion?.defaultModel || settings.model;
+      const modeDefaultModel = mode ? (effectiveDefaultModels as unknown as Record<string, string>)[mode] : undefined;
+      const effectiveModel = activeCompanion?.defaultModel || modeDefaultModel || settings.model;
       const baseUrl = getApiUrl();
       const response = await fetch(`${baseUrl}api/chat`, {
         method: "POST",
@@ -328,6 +332,7 @@ export default function ChatScreen() {
               ...updated[idx],
               content: currentContent,
               status: "complete",
+              mode,
               ...(currentThinking ? { thinkingContent: currentThinking } : {}),
               ...(currentCitations.length > 0 ? { citations: currentCitations } : {}),
             } as any;

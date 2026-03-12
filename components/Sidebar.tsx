@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   FlatList,
   Modal,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,10 +18,17 @@ import { CompanionsSheet } from "@/components/CompanionsSheet";
 import { SpaceSheet } from "@/components/SpaceSheet";
 import { Conversation, useChatContext } from "@/contexts/ChatContext";
 import { useCompanions } from "@/contexts/CompanionsContext";
-import { useSpaces } from "@/contexts/SpacesContext";
+import { useSpaces, Space } from "@/contexts/SpacesContext";
 import { useColors } from "@/lib/useColors";
 import { useTranslations } from "@/lib/useTranslations";
 import * as Haptics from "expo-haptics";
+
+interface SearchResult {
+  conversationId: string;
+  conversationTitle: string;
+  snippet: string;
+  role: "user" | "assistant";
+}
 
 interface Props {
   activeConversationId?: string;
@@ -37,7 +45,7 @@ export function Sidebar({
 }: Props) {
   const C = useColors();
   const t = useTranslations();
-  const { conversations, deleteConversation, renameConversation, getSpaceConversations } = useChatContext();
+  const { conversations, deleteConversation, renameConversation, getSpaceConversations, getMessages } = useChatContext();
   const { companions, activeCompanionId, setActiveCompanion } = useCompanions();
   const { spaces, activeSpaceId, setActiveSpace, deleteSpace } = useSpaces();
   const [search, setSearch] = useState("");
@@ -47,6 +55,10 @@ export function Sidebar({
   const [showCompanions, setShowCompanions] = useState(false);
   const [showSpaceSheet, setShowSpaceSheet] = useState(false);
   const [viewingSpaceId, setViewingSpaceId] = useState<string | null>(null);
+  const [threadSearch, setThreadSearch] = useState("");
+  const [crossThreadResults, setCrossThreadResults] = useState<SearchResult[]>([]);
+  const [crossThreadSearching, setCrossThreadSearching] = useState(false);
+  const [crossThreadQuery, setCrossThreadQuery] = useState("");
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(C), [C]);
 
@@ -60,7 +72,7 @@ export function Sidebar({
 
   const spaceFiltered = viewingSpace
     ? getSpaceConversations(viewingSpace.id).filter((c) =>
-        c.title.toLowerCase().includes(search.toLowerCase())
+        c.title.toLowerCase().includes(threadSearch.toLowerCase())
       )
     : [];
 
@@ -91,11 +103,49 @@ export function Sidebar({
     }
   };
 
+  const handleCrossThreadSearch = useCallback(async (query: string) => {
+    if (!viewingSpace || !query.trim()) {
+      setCrossThreadResults([]);
+      return;
+    }
+    setCrossThreadSearching(true);
+    const spaceConvs = getSpaceConversations(viewingSpace.id);
+    const results: SearchResult[] = [];
+    const q = query.toLowerCase();
+
+    await Promise.all(
+      spaceConvs.map(async (conv) => {
+        try {
+          const msgs = await getMessages(conv.id);
+          for (const msg of msgs) {
+            if (msg.role === "system") continue;
+            const idx = msg.content.toLowerCase().indexOf(q);
+            if (idx !== -1) {
+              const start = Math.max(0, idx - 40);
+              const end = Math.min(msg.content.length, idx + query.length + 80);
+              const snippet = (start > 0 ? "…" : "") + msg.content.slice(start, end) + (end < msg.content.length ? "…" : "");
+              results.push({
+                conversationId: conv.id,
+                conversationTitle: conv.title,
+                snippet,
+                role: msg.role as "user" | "assistant",
+              });
+              break;
+            }
+          }
+        } catch {}
+      })
+    );
+
+    setCrossThreadResults(results);
+    setCrossThreadSearching(false);
+  }, [viewingSpace, getSpaceConversations, getMessages]);
+
   if (viewingSpace) {
     return (
       <View style={[styles.container, { paddingTop: topPadding }]}>
         <View style={styles.header}>
-          <Pressable style={styles.backBtn} onPress={() => { setSearch(""); setViewingSpaceId(null); }}>
+          <Pressable style={styles.backBtn} onPress={() => { setThreadSearch(""); setCrossThreadResults([]); setCrossThreadQuery(""); setViewingSpaceId(null); }}>
             <Feather name="chevron-left" size={18} color={C.text} />
           </Pressable>
           <View style={styles.spaceHeaderCenter}>
@@ -122,34 +172,87 @@ export function Sidebar({
           <Feather name="search" size={14} color={C.textTertiary} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search threads..."
+            value={threadSearch}
+            onChangeText={(v) => {
+              setThreadSearch(v);
+              if (v.trim().length > 1) {
+                setCrossThreadQuery(v);
+                handleCrossThreadSearch(v);
+              } else {
+                setCrossThreadResults([]);
+                setCrossThreadQuery("");
+              }
+            }}
+            placeholder="Search threads & messages..."
             placeholderTextColor={C.textTertiary}
             selectionColor={C.primary}
           />
+          {threadSearch.length > 0 && (
+            <Pressable onPress={() => { setThreadSearch(""); setCrossThreadResults([]); setCrossThreadQuery(""); }} hitSlop={8}>
+              <Feather name="x" size={14} color={C.textTertiary} />
+            </Pressable>
+          )}
         </View>
 
-        <FlatList
-          data={spaceFiltered}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <ConversationItem
-              conversation={item}
-              isActive={item.id === activeConversationId}
-              onPress={() => { onSelectConversation(item.id); onClose(); }}
-              onDelete={() => handleDelete(item.id)}
-              onRename={() => handleRename(item)}
-            />
-          )}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <Text style={styles.emptyText}>No threads yet. Tap the pencil to start one.</Text>
-            </View>
-          }
-        />
+        {crossThreadQuery.trim().length > 1 ? (
+          <View style={styles.crossThreadContainer}>
+            {crossThreadSearching ? (
+              <View style={styles.crossThreadLoading}>
+                <ActivityIndicator size="small" color={C.primary} />
+                <Text style={styles.crossThreadLoadingText}>Searching all threads...</Text>
+              </View>
+            ) : crossThreadResults.length === 0 ? (
+              <View style={styles.crossThreadEmpty}>
+                <Text style={styles.crossThreadEmptyText}>No messages found for "{crossThreadQuery}"</Text>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.crossThreadHeader}>
+                  {crossThreadResults.length} result{crossThreadResults.length !== 1 ? "s" : ""} across threads
+                </Text>
+                <FlatList
+                  data={crossThreadResults}
+                  keyExtractor={(item, i) => `${item.conversationId}-${i}`}
+                  renderItem={({ item }) => (
+                    <Pressable
+                      style={styles.crossThreadResult}
+                      onPress={() => { onSelectConversation(item.conversationId); onClose(); }}
+                    >
+                      <View style={styles.crossThreadResultHeader}>
+                        <Feather name={item.role === "assistant" ? "zap" : "user"} size={11} color={C.textTertiary} />
+                        <Text style={styles.crossThreadConvTitle} numberOfLines={1}>{item.conversationTitle}</Text>
+                      </View>
+                      <Text style={styles.crossThreadSnippet} numberOfLines={2}>{item.snippet}</Text>
+                    </Pressable>
+                  )}
+                  contentContainerStyle={{ paddingBottom: 20 }}
+                  showsVerticalScrollIndicator={false}
+                />
+              </>
+            )}
+          </View>
+        ) : (
+          <FlatList
+            data={spaceFiltered}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <ConversationItem
+                conversation={item}
+                isActive={item.id === activeConversationId}
+                onPress={() => { onSelectConversation(item.id); onClose(); }}
+                onDelete={() => handleDelete(item.id)}
+                onRename={() => handleRename(item)}
+              />
+            )}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={styles.empty}>
+                <Text style={styles.emptyText}>No threads yet. Tap the pencil to start one.</Text>
+              </View>
+            }
+          />
+        )}
 
         <Modal visible={!!renamingId} transparent animationType="fade" onRequestClose={() => setRenamingId(null)}>
           <Pressable style={styles.modalOverlay} onPress={() => setRenamingId(null)} />
@@ -232,6 +335,9 @@ export function Sidebar({
                   setActiveSpace(activeSpaceId === space.id ? null : space.id);
                   setViewingSpaceId(space.id);
                   setSearch("");
+                  setThreadSearch("");
+                  setCrossThreadResults([]);
+                  setCrossThreadQuery("");
                 }}
               >
                 <Text style={styles.spaceItemEmoji}>{space.emoji}</Text>
@@ -336,6 +442,22 @@ function createStyles(C: ReturnType<typeof useColors>) {
       flex: 1, color: C.text, fontSize: 14, fontFamily: "Inter_400Regular", paddingVertical: 8,
     },
     listContent: { paddingBottom: 20 },
+    crossThreadContainer: { flex: 1, paddingHorizontal: 12 },
+    crossThreadLoading: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 20 },
+    crossThreadLoadingText: { color: C.textTertiary, fontSize: 13, fontFamily: "Inter_400Regular" },
+    crossThreadEmpty: { paddingVertical: 24, alignItems: "center" },
+    crossThreadEmptyText: { color: C.textTertiary, fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
+    crossThreadHeader: {
+      color: C.textTertiary, fontSize: 11, fontFamily: "Inter_600SemiBold",
+      letterSpacing: 0.6, marginBottom: 8, marginTop: 4,
+    },
+    crossThreadResult: {
+      backgroundColor: C.surface, borderRadius: 10, borderWidth: 1, borderColor: C.border,
+      padding: 12, marginBottom: 8,
+    },
+    crossThreadResultHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
+    crossThreadConvTitle: { color: C.primary, fontSize: 12, fontFamily: "Inter_500Medium", flex: 1 },
+    crossThreadSnippet: { color: C.textSecondary, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
     companionsRow: {
       flexDirection: "row", alignItems: "center", justifyContent: "space-between",
       marginHorizontal: 12, marginBottom: 6, paddingHorizontal: 12, paddingVertical: 10,

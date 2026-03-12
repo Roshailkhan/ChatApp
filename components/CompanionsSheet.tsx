@@ -15,6 +15,8 @@ import { useColors } from "@/lib/useColors";
 import {
   useCompanions,
   Companion,
+  CompanionTone,
+  CompanionVerbosity,
   BUILT_IN_COMPANIONS,
 } from "@/contexts/CompanionsContext";
 
@@ -53,6 +55,18 @@ const AVAILABLE_TOOLS = [
 const ICON_OPTIONS = ["user", "star", "heart", "cpu", "edit-3", "briefcase", "code", "book", "music", "globe", "shield", "trending-up"];
 const COLOR_OPTIONS = ["#8B5CF6", "#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#6366F1", "#059669", "#F97316", "#EC4899", "#14B8A6"];
 
+const TONE_OPTIONS: { value: CompanionTone; label: string }[] = [
+  { value: "formal", label: "Formal" },
+  { value: "casual", label: "Casual" },
+  { value: "friendly", label: "Friendly" },
+];
+
+const VERBOSITY_OPTIONS: { value: CompanionVerbosity; label: string }[] = [
+  { value: "concise", label: "Concise" },
+  { value: "balanced", label: "Balanced" },
+  { value: "detailed", label: "Detailed" },
+];
+
 export function CompanionsSheet({ visible, onClose }: Props) {
   const C = useColors();
   const insets = useSafeAreaInsets();
@@ -67,6 +81,8 @@ export function CompanionsSheet({ visible, onClose }: Props) {
   const [buildColor, setBuildColor] = useState("#8B5CF6");
   const [buildTools, setBuildTools] = useState<string[]>([]);
   const [buildModel, setBuildModel] = useState<string>("");
+  const [buildTone, setBuildTone] = useState<CompanionTone>("casual");
+  const [buildVerbosity, setBuildVerbosity] = useState<CompanionVerbosity>("balanced");
   const [buildError, setBuildError] = useState("");
 
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
@@ -85,7 +101,8 @@ export function CompanionsSheet({ visible, onClose }: Props) {
 
   const resetBuilder = () => {
     setBuildName(""); setBuildDesc(""); setBuildPrompt(""); setBuildError("");
-    setBuildIcon("user"); setBuildColor("#8B5CF6"); setBuildTools([]); setBuildModel("");
+    setBuildIcon("user"); setBuildColor("#8B5CF6"); setBuildTools([]);
+    setBuildModel(""); setBuildTone("casual"); setBuildVerbosity("balanced");
   };
 
   const handleCreate = async () => {
@@ -99,6 +116,8 @@ export function CompanionsSheet({ visible, onClose }: Props) {
       systemPrompt: buildPrompt.trim(),
       tools: buildTools.length > 0 ? buildTools : undefined,
       defaultModel: buildModel || undefined,
+      tone: buildTone,
+      verbosity: buildVerbosity,
     });
     resetBuilder();
     setShowBuilder(false);
@@ -224,6 +243,34 @@ export function CompanionsSheet({ visible, onClose }: Props) {
                 multiline numberOfLines={6} textAlignVertical="top"
               />
 
+              <Text style={styles.fieldLabel}>Response Tone</Text>
+              <Text style={styles.fieldHint}>How this companion communicates with you</Text>
+              <View style={styles.toneRow}>
+                {TONE_OPTIONS.map((opt) => (
+                  <Pressable
+                    key={opt.value}
+                    style={[styles.toneChip, buildTone === opt.value && { backgroundColor: buildColor + "22", borderColor: buildColor }]}
+                    onPress={() => setBuildTone(opt.value)}
+                  >
+                    <Text style={[styles.toneChipText, buildTone === opt.value && { color: buildColor }]}>{opt.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <Text style={styles.fieldLabel}>Response Style</Text>
+              <Text style={styles.fieldHint}>How detailed should responses be</Text>
+              <View style={styles.toneRow}>
+                {VERBOSITY_OPTIONS.map((opt) => (
+                  <Pressable
+                    key={opt.value}
+                    style={[styles.toneChip, buildVerbosity === opt.value && { backgroundColor: buildColor + "22", borderColor: buildColor }]}
+                    onPress={() => setBuildVerbosity(opt.value)}
+                  >
+                    <Text style={[styles.toneChipText, buildVerbosity === opt.value && { color: buildColor }]}>{opt.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+
               <Text style={styles.fieldLabel}>Default Model (optional)</Text>
               <Text style={styles.fieldHint}>This model will be used whenever this companion is active</Text>
               <View style={styles.modelGrid}>
@@ -282,6 +329,7 @@ function CompanionCard({
   onDelete?: () => void; styles: ReturnType<typeof createStyles>; C: ReturnType<typeof useColors>;
 }) {
   const modelLabel = companion.defaultModel ? MODEL_SHORT[companion.defaultModel] ?? null : null;
+  const toneLabel = companion.tone ? companion.tone.charAt(0).toUpperCase() + companion.tone.slice(1) : null;
   return (
     <Pressable style={[styles.card, isActive && styles.cardActive]} onPress={onPress}>
       <View style={[styles.cardIcon, { backgroundColor: companion.color + "22" }]}>
@@ -302,11 +350,18 @@ function CompanionCard({
             ))}
           </View>
         )}
-        {modelLabel && (
-          <View style={[styles.modelBadge, { backgroundColor: companion.color + "18" }]}>
-            <Text style={[styles.modelBadgeText, { color: companion.color }]}>{modelLabel}</Text>
-          </View>
-        )}
+        <View style={styles.cardBadges}>
+          {toneLabel && (
+            <View style={[styles.toneBadge, { backgroundColor: companion.color + "18" }]}>
+              <Text style={[styles.toneBadgeText, { color: companion.color }]}>{toneLabel}</Text>
+            </View>
+          )}
+          {modelLabel && (
+            <View style={[styles.modelBadge, { backgroundColor: companion.color + "18" }]}>
+              <Text style={[styles.modelBadgeText, { color: companion.color }]}>{modelLabel}</Text>
+            </View>
+          )}
+        </View>
       </View>
       {isActive && (
         <View style={styles.activeIndicator}>
@@ -352,11 +407,14 @@ function createStyles(C: ReturnType<typeof useColors>) {
     cardIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", marginBottom: 2 },
     cardName: { color: C.text, fontSize: 14, fontFamily: "Inter_600SemiBold" },
     cardDesc: { color: C.textSecondary, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 16 },
-    cardFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
+    cardFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4, flexWrap: "wrap", gap: 4 },
     cardTools: { flexDirection: "row", gap: 4 },
     cardToolDot: { width: 18, height: 18, borderRadius: 9, alignItems: "center", justifyContent: "center" },
+    cardBadges: { flexDirection: "row", gap: 4, flexWrap: "wrap" },
     modelBadge: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
     modelBadgeText: { fontSize: 10, fontFamily: "Inter_500Medium" },
+    toneBadge: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+    toneBadgeText: { fontSize: 10, fontFamily: "Inter_400Regular" },
     activeIndicator: {
       position: "absolute", top: 10, right: 10, width: 20, height: 20,
       borderRadius: 10, backgroundColor: C.primary, alignItems: "center", justifyContent: "center",
@@ -384,6 +442,13 @@ function createStyles(C: ReturnType<typeof useColors>) {
     colorRow: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
     colorDot: { width: 28, height: 28, borderRadius: 14 },
     colorDotActive: { borderWidth: 3, borderColor: "#fff" },
+    toneRow: { flexDirection: "row", gap: 8, marginBottom: 4 },
+    toneChip: {
+      flex: 1, paddingVertical: 9, borderRadius: 10,
+      backgroundColor: C.surface, borderWidth: 1, borderColor: C.border,
+      alignItems: "center",
+    },
+    toneChipText: { color: C.textSecondary, fontSize: 13, fontFamily: "Inter_400Regular" },
     modelGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
     modelChip: {
       paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
