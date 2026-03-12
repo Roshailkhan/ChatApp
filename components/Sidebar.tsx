@@ -47,7 +47,9 @@ export function Sidebar({
   const t = useTranslations();
   const { conversations, deleteConversation, renameConversation, getSpaceConversations, getMessages } = useChatContext();
   const { companions, activeCompanionId, setActiveCompanion } = useCompanions();
-  const { spaces, activeSpaceId, setActiveSpace, deleteSpace } = useSpaces();
+  const { spaces, activeSpaceId, setActiveSpace, deleteSpace, updateSpace } = useSpaces();
+  const activeSpace = spaces.find((s) => s.id === activeSpaceId) ?? null;
+  const [savingToSpaceId, setSavingToSpaceId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameText, setRenameText] = useState("");
@@ -102,6 +104,17 @@ export function Sidebar({
       }
     }
   };
+
+  const handleSaveSnippetToSpace = useCallback(async (snippet: string, resultKey: string) => {
+    if (!activeSpace) return;
+    setSavingToSpaceId(resultKey);
+    const current = activeSpace.context || "";
+    const separator = current.trim() ? "\n\n---\n" : "";
+    const updated = `${current}${separator}${snippet}`;
+    await updateSpace(activeSpace.id, { context: updated });
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setSavingToSpaceId(null);
+  }, [activeSpace, updateSpace]);
 
   const handleCrossThreadSearch = useCallback(async (query: string) => {
     if (!viewingSpace || !query.trim()) {
@@ -213,18 +226,31 @@ export function Sidebar({
                 <FlatList
                   data={crossThreadResults}
                   keyExtractor={(item, i) => `${item.conversationId}-${i}`}
-                  renderItem={({ item }) => (
-                    <Pressable
-                      style={styles.crossThreadResult}
-                      onPress={() => { onSelectConversation(item.conversationId); onClose(); }}
-                    >
-                      <View style={styles.crossThreadResultHeader}>
-                        <Feather name={item.role === "assistant" ? "zap" : "user"} size={11} color={C.textTertiary} />
-                        <Text style={styles.crossThreadConvTitle} numberOfLines={1}>{item.conversationTitle}</Text>
-                      </View>
-                      <Text style={styles.crossThreadSnippet} numberOfLines={2}>{item.snippet}</Text>
-                    </Pressable>
-                  )}
+                  renderItem={({ item, index }) => {
+                    const resultKey = `${item.conversationId}-${index}`;
+                    const isSaving = savingToSpaceId === resultKey;
+                    return (
+                      <Pressable
+                        style={styles.crossThreadResult}
+                        onPress={() => { onSelectConversation(item.conversationId); onClose(); }}
+                      >
+                        <View style={styles.crossThreadResultHeader}>
+                          <Feather name={item.role === "assistant" ? "zap" : "user"} size={11} color={C.textTertiary} />
+                          <Text style={styles.crossThreadConvTitle} numberOfLines={1}>{item.conversationTitle}</Text>
+                          {activeSpace && (
+                            <Pressable
+                              style={styles.saveToSpaceBtn}
+                              onPress={() => handleSaveSnippetToSpace(item.snippet, resultKey)}
+                              hitSlop={8}
+                            >
+                              <Feather name={isSaving ? "check" : "bookmark"} size={11} color={isSaving ? "#10B981" : C.textTertiary} />
+                            </Pressable>
+                          )}
+                        </View>
+                        <Text style={styles.crossThreadSnippet} numberOfLines={2}>{item.snippet}</Text>
+                      </Pressable>
+                    );
+                  }}
                   contentContainerStyle={{ paddingBottom: 20 }}
                   showsVerticalScrollIndicator={false}
                 />
@@ -457,6 +483,7 @@ function createStyles(C: ReturnType<typeof useColors>) {
     },
     crossThreadResultHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
     crossThreadConvTitle: { color: C.primary, fontSize: 12, fontFamily: "Inter_500Medium", flex: 1 },
+    saveToSpaceBtn: { padding: 2 },
     crossThreadSnippet: { color: C.textSecondary, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
     companionsRow: {
       flexDirection: "row", alignItems: "center", justifyContent: "space-between",

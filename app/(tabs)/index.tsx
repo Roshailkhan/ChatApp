@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { fetch } from "expo/fetch";
 import { Feather } from "@expo/vector-icons";
-import { ChatInput, ChatMode } from "@/components/ChatInput";
+import { ChatInput, ChatMode, ResearchFormat } from "@/components/ChatInput";
 import { MessageBubble } from "@/components/MessageBubble";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import { Sidebar } from "@/components/Sidebar";
@@ -137,7 +137,7 @@ export default function ChatScreen() {
     setMessages(msgs);
   }
 
-  const handleSend = async (text: string, mode: ChatMode) => {
+  const handleSend = async (text: string, mode: ChatMode, researchFormat?: ResearchFormat) => {
     if (!activeConversationId || isStreaming) return;
     const convId = activeConversationId;
     setCurrentMode(mode);
@@ -216,6 +216,18 @@ export default function ChatScreen() {
       systemParts.push(settings.systemPrompt);
     }
 
+    if (mode === "research" && researchFormat && researchFormat !== "auto") {
+      const formatInstructions: Record<string, string> = {
+        summary: "Format your response as a concise executive summary with key takeaways highlighted.",
+        report: "Format your response as a structured report with an introduction, main sections, and a conclusion.",
+        analysis: "Format your response as a detailed analytical breakdown with evidence, implications, and insights.",
+        citations: "Format your response primarily as a curated list of cited sources with brief annotations for each.",
+        document: "Format your response as a comprehensive long-form document suitable for saving. Include headings, subheadings, and thorough coverage of all subtopics.",
+      };
+      const instruction = formatInstructions[researchFormat];
+      if (instruction) systemParts.push(instruction);
+    }
+
     const effectiveSystemPrompt = systemParts.filter(Boolean).join("\n\n");
 
     let assistantMsgId: string | null = null;
@@ -225,7 +237,7 @@ export default function ChatScreen() {
 
     try {
       const modeDefaultModel = mode ? (effectiveDefaultModels as unknown as Record<string, string>)[mode] : undefined;
-      const effectiveModel = activeCompanion?.defaultModel || modeDefaultModel || settings.model;
+      const effectiveModel = activeCompanion?.defaultModel || activeSpace?.defaultModel || modeDefaultModel || settings.model;
       const baseUrl = getApiUrl();
       const response = await fetch(`${baseUrl}api/chat`, {
         method: "POST",

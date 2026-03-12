@@ -14,6 +14,16 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/lib/useColors";
 import { useSpaces, Space } from "@/contexts/SpacesContext";
 
+const SPACE_MODELS = [
+  { id: "", label: "Auto (Global Default)", desc: "" },
+  { id: "llama-3.3-70b-versatile", label: "Llama 3.3 70B", desc: "Fast, versatile" },
+  { id: "deepseek/deepseek-chat", label: "DeepSeek V3", desc: "Strong reasoning" },
+  { id: "gpt-4o", label: "GPT-4o", desc: "Broad knowledge" },
+  { id: "anthropic/claude-3.5-sonnet", label: "Claude 3.5 Sonnet", desc: "Nuanced writing" },
+  { id: "compound-beta", label: "Compound Beta", desc: "Web search + tools" },
+  { id: "mistralai/mistral-small-3.1-24b-instruct", label: "Mistral 24B", desc: "Efficient, balanced" },
+];
+
 interface Props {
   visible: boolean;
   onClose: () => void;
@@ -32,6 +42,7 @@ export function SpaceSheet({ visible, onClose, editingSpace }: Props) {
   const [emoji, setEmoji] = useState("🚀");
   const [context, setContext] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [defaultModel, setDefaultModel] = useState("");
 
   useEffect(() => {
     if (editingSpace) {
@@ -39,11 +50,13 @@ export function SpaceSheet({ visible, onClose, editingSpace }: Props) {
       setEmoji(editingSpace.emoji);
       setContext(editingSpace.context);
       setInstructions(editingSpace.instructions);
+      setDefaultModel(editingSpace.defaultModel || "");
     } else {
       setName("");
       setEmoji("🚀");
       setContext("");
       setInstructions("");
+      setDefaultModel("");
     }
   }, [editingSpace, visible]);
 
@@ -52,9 +65,9 @@ export function SpaceSheet({ visible, onClose, editingSpace }: Props) {
   async function handleSave() {
     if (!name.trim()) return;
     if (editingSpace) {
-      await updateSpace(editingSpace.id, { name: name.trim(), emoji, context, instructions });
+      await updateSpace(editingSpace.id, { name: name.trim(), emoji, context, instructions, defaultModel });
     } else {
-      await createSpace({ name: name.trim(), emoji, context, instructions, defaultModel: "" });
+      await createSpace({ name: name.trim(), emoji, context, instructions, defaultModel });
     }
     onClose();
   }
@@ -149,6 +162,33 @@ export function SpaceSheet({ visible, onClose, editingSpace }: Props) {
               numberOfLines={4}
               maxLength={2000}
             />
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>DEFAULT MODEL</Text>
+            <Text style={styles.fieldHint}>Model used for all threads in this space</Text>
+            <View style={styles.modelList}>
+              {SPACE_MODELS.map((m, i) => {
+                const isSelected = defaultModel === m.id;
+                return (
+                  <Pressable
+                    key={m.id || "auto"}
+                    style={[
+                      styles.modelRow,
+                      i < SPACE_MODELS.length - 1 && styles.modelRowBorder,
+                      isSelected && styles.modelRowSelected,
+                    ]}
+                    onPress={() => setDefaultModel(m.id)}
+                  >
+                    <View>
+                      <Text style={[styles.modelRowLabel, isSelected && styles.modelRowLabelActive]}>{m.label}</Text>
+                      {m.desc ? <Text style={styles.modelRowDesc}>{m.desc}</Text> : null}
+                    </View>
+                    {isSelected && <Feather name="check" size={16} color={C.primary} />}
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
         </ScrollView>
       </View>
@@ -247,6 +287,42 @@ function createStyles(C: ReturnType<typeof useColors>) {
     textArea: {
       minHeight: 100,
       textAlignVertical: "top",
+    },
+    modelList: {
+      backgroundColor: C.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: C.border,
+      overflow: "hidden",
+    },
+    modelRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    modelRowBorder: {
+      borderBottomWidth: 1,
+      borderBottomColor: C.border,
+    },
+    modelRowSelected: {
+      backgroundColor: C.surface2,
+    },
+    modelRowLabel: {
+      color: C.text,
+      fontSize: 14,
+      fontFamily: "Inter_400Regular",
+    },
+    modelRowLabelActive: {
+      fontFamily: "Inter_500Medium",
+      color: C.primary,
+    },
+    modelRowDesc: {
+      color: C.textTertiary,
+      fontSize: 11,
+      fontFamily: "Inter_400Regular",
+      marginTop: 1,
     },
   });
 }

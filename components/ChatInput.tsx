@@ -15,8 +15,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export type ChatMode = "chat" | "search" | "research" | "code";
 
+export type ResearchFormat = "auto" | "summary" | "report" | "analysis" | "citations" | "document";
+
 interface Props {
-  onSend: (text: string, mode: ChatMode) => void;
+  onSend: (text: string, mode: ChatMode, researchFormat?: ResearchFormat) => void;
   onStop?: () => void;
   isStreaming: boolean;
   disabled?: boolean;
@@ -45,6 +47,7 @@ export function ChatInput({
   const [text, setText] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const [mode, setMode] = useState<ChatMode>("chat");
+  const [researchFormat, setResearchFormat] = useState<ResearchFormat>("auto");
   const inputRef = useRef<TextInput>(null);
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(C), [C]);
@@ -60,7 +63,7 @@ export function ChatInput({
   const handleSend = () => {
     const trimmed = text.trim();
     if (!trimmed || isStreaming) return;
-    onSend(trimmed, mode);
+    onSend(trimmed, mode, mode === "research" ? researchFormat : undefined);
     setText("");
     inputRef.current?.focus();
   };
@@ -154,6 +157,23 @@ export function ChatInput({
           </View>
         )}
       </View>
+      {mode === "research" && (
+        <View style={styles.formatRow}>
+          {(["auto", "summary", "report", "analysis", "citations", "document"] as ResearchFormat[]).map((fmt) => {
+            const isActive = researchFormat === fmt;
+            const label = fmt === "auto" ? "Auto" : fmt === "summary" ? "Summary" : fmt === "report" ? "Report" : fmt === "analysis" ? "Analysis" : fmt === "citations" ? "Citations" : "Document";
+            return (
+              <Pressable
+                key={fmt}
+                style={[styles.formatChip, isActive && styles.formatChipActive]}
+                onPress={() => setResearchFormat(fmt)}
+              >
+                <Text style={[styles.formatChipText, isActive && styles.formatChipTextActive]}>{label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
       <View style={styles.row}>
         <View
           style={[
@@ -295,6 +315,32 @@ function createStyles(C: ReturnType<typeof useColors>) {
       backgroundColor: C.surface3,
       borderWidth: 1,
       borderColor: C.border,
+    },
+    formatRow: {
+      flexDirection: "row",
+      gap: 6,
+      marginBottom: 8,
+      flexWrap: "wrap",
+    },
+    formatChip: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 12,
+      backgroundColor: C.surface2,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    formatChipActive: {
+      backgroundColor: "#8B5CF6" + "22",
+      borderColor: "#8B5CF6" + "66",
+    },
+    formatChipText: {
+      color: C.textTertiary,
+      fontSize: 11,
+      fontFamily: "Inter_500Medium",
+    },
+    formatChipTextActive: {
+      color: "#8B5CF6",
     },
   });
 }
