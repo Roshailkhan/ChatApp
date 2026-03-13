@@ -288,7 +288,8 @@ function createStyles(C: ReturnType<typeof useColors>) {
       maxHeight: 120,
     },
     inputContainerFocused: {
-      borderColor: "#ffffff",
+      borderColor: C.primary,
+      borderWidth: 1.5,
     },
     input: {
       color: C.text,
@@ -297,7 +298,7 @@ function createStyles(C: ReturnType<typeof useColors>) {
       fontFamily: "Inter_400Regular",
       padding: 0,
       ...(Platform.OS === "web"
-        ? { outlineWidth: 0, borderWidth: 0 }
+        ? { outlineWidth: 0, outlineStyle: "none", borderWidth: 0, boxShadow: "none" } as any
         : {}),
     },
     sendButton: {
