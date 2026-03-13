@@ -62,6 +62,34 @@ function usesCompletionTokens(model: string): boolean {
   return /^o[0-9]|^gpt-5/i.test(model);
 }
 
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+function trimMessages(
+  messages: { role: string; content: string }[],
+  systemPrompt: string,
+  maxTokens = 50000
+): { role: string; content: string }[] {
+  const systemTokens = estimateTokens(systemPrompt);
+  const reservedForResponse = 8192;
+  const budget = maxTokens - systemTokens - reservedForResponse;
+
+  // Always keep the last user message
+  const reversed = [...messages].reverse();
+  const kept: { role: string; content: string }[] = [];
+  let used = 0;
+
+  for (const msg of reversed) {
+    const tokens = estimateTokens(msg.content);
+    if (used + tokens > budget && kept.length > 0) break;
+    kept.unshift(msg);
+    used += tokens;
+  }
+
+  return kept;
+}
+
 function getClientForModel(model: string): OpenAI {
   if (OPENROUTER_MODELS.has(model) && process.env.OPENROUTER_API_KEY) {
     return new OpenAI({
@@ -140,7 +168,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (effectivePrompt.trim()) {
         allMessages.push({ role: "system", content: effectivePrompt });
       }
-      allMessages.push(...messages);
+      const trimmedMessages = trimMessages(messages, effectivePrompt);
+      allMessages.push(...trimmedMessages);
 
       const client = getClientForModel(selectedModel);
 
