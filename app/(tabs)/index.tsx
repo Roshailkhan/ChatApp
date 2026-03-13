@@ -557,6 +557,7 @@ export default function ChatScreen() {
           <FlatList
             data={reversedMessages}
             keyExtractor={(item) => item.id}
+            style={styles.flex}
             renderItem={({ item }) => (
               item.role === "system" ? (
                 <View style={styles.systemMsgContainer}>
@@ -575,26 +576,25 @@ export default function ChatScreen() {
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
             scrollEnabled={!!(reversedMessages.length || isTyping)}
-            ListHeaderComponent={
-              isTyping ? (
-                <View style={styles.invertFix}>
-                  {modeLabel && (
-                    <View style={[styles.modeBanner, { backgroundColor: (modeColor || C.primary) + "18" }]}>
-                      <Feather
-                        name={currentMode === "search" ? "globe" : currentMode === "research" ? "layers" : "terminal"}
-                        size={12}
-                        color={modeColor || C.primary}
-                      />
-                      <Text style={[styles.modeBannerText, { color: modeColor || C.primary }]}>
-                        {currentMode === "research" ? "Researching..." : currentMode === "search" ? "Searching the web..." : "Generating code..."}
-                      </Text>
-                    </View>
-                  )}
-                  <TypingIndicator />
-                </View>
-              ) : null
-            }
           />
+
+          {isTyping && (
+            <View style={styles.typingRow}>
+              {modeLabel && (
+                <View style={[styles.modeBanner, { backgroundColor: (modeColor || C.primary) + "18" }]}>
+                  <Feather
+                    name={currentMode === "search" ? "globe" : currentMode === "research" ? "layers" : "terminal"}
+                    size={12}
+                    color={modeColor || C.primary}
+                  />
+                  <Text style={[styles.modeBannerText, { color: modeColor || C.primary }]}>
+                    {currentMode === "research" ? "Researching..." : currentMode === "search" ? "Searching the web..." : "Generating code..."}
+                  </Text>
+                </View>
+              )}
+              <TypingIndicator />
+            </View>
+          )}
 
           {reversedMessages.length === 0 && !isTyping && (
             <View style={[styles.emptyOverlay, { pointerEvents: "box-none" }]}>
@@ -836,8 +836,10 @@ function createStyles(C: ReturnType<typeof useColors>) {
     emptyList: {
       flexGrow: 1,
     },
-    invertFix: {
-      transform: [{ scale: -1 }],
+    typingRow: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      gap: 6,
     },
     listWrapper: {
       flex: 1,
