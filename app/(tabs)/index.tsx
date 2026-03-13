@@ -837,7 +837,7 @@ function createStyles(C: ReturnType<typeof useColors>) {
       flexGrow: 1,
     },
     invertFix: {
-      transform: [{ scaleY: -1 }],
+      transform: [{ scale: -1 }],
     },
     listWrapper: {
       flex: 1,

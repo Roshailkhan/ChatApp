@@ -66,17 +66,27 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
+const MAX_MSG_CHARS = 6000; // truncate any single message longer than this
+
 function trimMessages(
   messages: { role: string; content: string }[],
   systemPrompt: string,
-  maxTokens = 50000
+  maxTokens = 30000
 ): { role: string; content: string }[] {
   const systemTokens = estimateTokens(systemPrompt);
-  const reservedForResponse = 8192;
-  const budget = maxTokens - systemTokens - reservedForResponse;
+  const reservedForResponse = 4096;
+  const budget = Math.max(4000, maxTokens - systemTokens - reservedForResponse);
 
-  // Always keep the last user message
-  const reversed = [...messages].reverse();
+  // Truncate very long individual messages first
+  const truncated = messages.map((m) => ({
+    ...m,
+    content: m.content.length > MAX_MSG_CHARS
+      ? m.content.slice(0, MAX_MSG_CHARS) + "…[truncated]"
+      : m.content,
+  }));
+
+  // Walk backwards from most recent, keep as many as fit
+  const reversed = [...truncated].reverse();
   const kept: { role: string; content: string }[] = [];
   let used = 0;
 
@@ -88,6 +98,11 @@ function trimMessages(
   }
 
   return kept;
+}
+
+function trimSystemPrompt(prompt: string, maxChars = 4000): string {
+  if (prompt.length <= maxChars) return prompt;
+  return prompt.slice(0, maxChars) + "…[truncated]";
 }
 
 function getClientForModel(model: string): OpenAI {
@@ -165,10 +180,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? `${effectivePrompt}\n\nPlease respond in ${language}.`
           : `Please respond in ${language}.`;
       }
-      if (effectivePrompt.trim()) {
-        allMessages.push({ role: "system", content: effectivePrompt });
+      const safeSystemPrompt = trimSystemPrompt(effectivePrompt);
+      if (safeSystemPrompt.trim()) {
+        allMessages.push({ role: "system", content: safeSystemPrompt });
       }
-      const trimmedMessages = trimMessages(messages, effectivePrompt);
+      const trimmedMessages = trimMessages(messages, safeSystemPrompt);
       allMessages.push(...trimmedMessages);
 
       const client = getClientForModel(selectedModel);
