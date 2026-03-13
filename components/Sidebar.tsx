@@ -487,12 +487,13 @@ function createStyles(C: ReturnType<typeof useColors>) {
     crossThreadSnippet: { color: C.textSecondary, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
     companionsRow: {
       flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-      marginHorizontal: 12, marginBottom: 6, paddingHorizontal: 12, paddingVertical: 10,
-      backgroundColor: C.surface2, borderRadius: 10, borderWidth: 1, borderColor: C.border,
+      marginHorizontal: 12, marginTop: 10, marginBottom: 12,
+      paddingHorizontal: 14, paddingVertical: 13,
+      backgroundColor: C.surface2, borderRadius: 12, borderWidth: 1.5, borderColor: C.primary + "44",
     },
-    companionsLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
-    companionsText: { color: C.textSecondary, fontSize: 13, fontFamily: "Inter_400Regular" },
-    companionsTextActive: { color: C.primary, fontFamily: "Inter_500Medium" },
+    companionsLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+    companionsText: { color: C.textSecondary, fontSize: 14, fontFamily: "Inter_500Medium" },
+    companionsTextActive: { color: C.primary, fontFamily: "Inter_600SemiBold" },
     spacesSection: { marginHorizontal: 12, marginBottom: 4 },
     spacesSectionHeader: {
       flexDirection: "row", alignItems: "center", justifyContent: "space-between",
