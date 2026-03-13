@@ -195,6 +195,7 @@ export function ChatInput({
             onSubmitEditing={handleSend}
             editable={!disabled}
             selectionColor={C.primary}
+            underlineColorAndroid="transparent"
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
           />
